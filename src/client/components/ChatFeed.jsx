@@ -12,6 +12,7 @@ export default function ChatFeed({
   onQuickPrompt,
   onOpenTool,
   onOpenNotesModal,
+  onUploadDocument,
   notes,
   input,
   onChangeInput,
@@ -43,6 +44,7 @@ export default function ChatFeed({
               onStop={onStop}
               onOpenNotesModal={onOpenNotesModal}
               onOpenTool={onOpenTool}
+              onUploadDocument={onUploadDocument}
               isHero={true}
             />
           </div>

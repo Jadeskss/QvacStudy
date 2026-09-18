@@ -398,6 +398,10 @@ export default function App() {
           onQuickPrompt={handleOpenTool}
           onOpenTool={handleOpenTool}
           onOpenNotesModal={() => setIsNotesModalOpen(true)}
+          onUploadDocument={(text, filename) => {
+            handleUploadSuccess(filename.replace(/\.[^/.]+$/, ''));
+            handleUpdateNotes(text);
+          }}
           notes={activeNotes}
           input={input}
           onChangeInput={setInput}
@@ -418,6 +422,10 @@ export default function App() {
               onStop={handleStopStreaming}
               onOpenNotesModal={() => setIsNotesModalOpen(true)}
               onOpenTool={handleOpenTool}
+              onUploadDocument={(text, filename) => {
+                handleUploadSuccess(filename.replace(/\.[^/.]+$/, ''));
+                handleUpdateNotes(text);
+              }}
               isHero={false}
             />
           </div>
