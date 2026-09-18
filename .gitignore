@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# QVAC runtime & model caches
+.qvac/
+models/
+*.gguf
+
+# Environment & logs
+.env
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS specific files
+.DS_Store
+Thumbs.db

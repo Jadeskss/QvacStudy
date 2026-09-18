@@ -1,0 +1,35 @@
+{
+  "name": "qvac-study-ai",
+  "version": "1.0.0",
+  "description": "On-device AI study & quiz tool built with Tether's QVAC SDK. Generates flashcards, active-recall quizzes, and provides AI tutor evaluations directly from your personal notes—100% private and offline.",
+  "type": "module",
+  "main": "src/server.js",
+  "bin": {
+    "qvac-study": "./cli.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "cli": "node cli.js",
+    "test": "node test/qvac.test.js"
+  },
+  "keywords": [
+    "qvac",
+    "tether",
+    "ai",
+    "on-device",
+    "local-ai",
+    "study-tool",
+    "quiz-generator",
+    "flashcards",
+    "active-recall",
+    "privacy-first"
+  ],
+  "author": "QvacStudy Team",
+  "license": "MIT",
+  "dependencies": {
+    "@qvac/sdk": "^0.19.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

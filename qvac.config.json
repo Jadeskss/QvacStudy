@@ -1,0 +1,6 @@
+{
+  "$schema": "https://docs.qvac.tether.io/schemas/v1/config.json",
+  "loggerConsoleOutput": true,
+  "httpDownloadConcurrency": 3,
+  "httpConnectionTimeoutMs": 30000
+}
