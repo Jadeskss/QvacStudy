@@ -63,8 +63,13 @@ app.post('/api/notes/parse-file', async (req, res) => {
 
     if (ext === '.pdf') {
       const { PDFParse } = await import('pdf-parse');
-      const data = await PDFParse(buffer);
-      text = data.text || '';
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const textResult = await parser.getText();
+        text = textResult?.text || '';
+      } finally {
+        await parser.destroy().catch(() => {});
+      }
     } else if (ext === '.docx' || ext === '.doc') {
       const mammoth = await import('mammoth');
       const result = await mammoth.extractRawText({ buffer });
