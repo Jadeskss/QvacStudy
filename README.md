@@ -1,181 +1,179 @@
-# 🎓 QvacStudy - On-Device AI Note Quizzer & Active-Recall Engine
+# QvacStudy
+
+On-device AI study tool and active-recall engine powered by Tether's open-source QVAC SDK (`@qvac/sdk`).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tether QVAC SDK](https://img.shields.io/badge/Powered%20By-Tether%20QVAC%20SDK%20(%3E=0.19.0)-00f0ff.svg)](https://qvac.tether.io)
-[![100% Local](https://img.shields.io/badge/Inference-100%25%20On--Device%20(Offline)-10b981.svg)](#privacy-first-architecture)
+[![100% Local](https://img.shields.io/badge/Inference-100%25%20On--Device%20(Offline)-10b981.svg)](#technical-overview)
 [![Node.js](https://img.shields.io/badge/Node.js-v18%2B%20%7C%20v20%2B%20%7C%20v22%2B%20%7C%20v24%2B-green.svg)](https://nodejs.org/)
 
-**QvacStudy** is a private, on-device AI study assistant built with **Tether's open-source [QVAC SDK](https://qvac.tether.io)** (`@qvac/sdk`). It transforms your personal notes, lecture transcripts, and textbook summaries into interactive **3D Flashcards**, **Timed Multiple-Choice Quizzes**, **Active-Recall Answer Assessments**, and an **Interactive AI Study Tutor**—running completely locally on your laptop or phone.
+QvacStudy is an on-device AI study tool that turns personal lecture notes and documents into interactive flashcards, practice quizzes, and an intelligent tutor without cloud inference. It calls the QVAC SDK's `loadModel`, `completion` (streaming token generation), `ragIngest` / `ragSearch` (local vector search), and `unloadModel` functions.
 
-Zero API keys. Zero cloud inference bills. Your private study notes never leave your device.
-
----
-
-## 📸 Preview
-
-![QvacStudy App Screenshot](docs/screenshot.png)
+All processing occurs entirely on local hardware (CPU/GPU). No user data is sent over the network, no external API keys are required, and no subscription fees or cloud inference costs are incurred.
 
 ---
 
-## ⚡ Why QvacStudy & Tether QVAC?
+## Technical Overview
 
-| Traditional Cloud Study Apps | QvacStudy (Tether QVAC SDK) |
+| Capability | Implementation |
 | :--- | :--- |
-| ❌ Sends sensitive lecture/research notes to external cloud APIs | 🔒 **100% Private**: All AI inference runs locally on your CPU/GPU |
-| ❌ Requires monthly API subscriptions or recurring token bills | 💰 **Zero Cost**: Free and open-source forever with no API keys |
-| ❌ Fails completely without an internet connection | ✈️ **Offline Capable**: Study anywhere, on planes or in remote areas |
-| ❌ Unpredictable latency & cloud downtime | ⚡ **Fast & Direct**: On-device Bare runtime engine tuned for local hardware |
+| Core AI Runtime | Tether QVAC SDK (`@qvac/sdk` >= 0.19.0) |
+| Local Inference Engine | Bare C++ runtime / llama.cpp on-device execution |
+| Primary Models | Qwen 2.5/3 600M Instruct (Q4), Llama 3.2 1B Instruct (Q4) |
+| Vector Retrieval | GTE-Large embeddings via `ragIngest` & `ragSearch` |
+| Application Server | Node.js, Express, Server-Sent Events (SSE) |
+| Frontend Stack | React 19, Vite, Vanilla CSS design system |
+| Document Ingestion | PDF (`pdf-parse`), Word (`mammoth`), Markdown, Plain Text |
+| Client Storage | Browser `localStorage` for offline study history and session persistence |
 
 ---
 
-## 🚀 Key Features
+## Core Features
 
-### 1. 🗂️ 3D Interactive Flashcards
-- Generates high-yield question-and-answer pairs extracted directly from your study notes.
-- Perspective 3D flip card animations (keyboard shortcut: `Space` to flip).
-- Spaced-repetition confidence scoring: **Again** 🔴, **Hard** 🟡, **Good** 🔵, and **Easy** 🟢.
+### 1. Interactive 3D Flashcards
+- Automatically extracts key terminology, core mechanisms, and definitions from source materials.
+- Generates high-yield study decks (5+ cards per set).
+- Interactive 3D flip interaction with keyboard shortcut support (`Space` to flip).
+- Spaced-repetition scoring: Again, Hard, Good, and Easy.
 
-### 2. 🎯 Timed Multiple-Choice Quiz
-- Dynamic 4-option quiz challenge (A, B, C, D) generated on-device from key facts and definitions.
-- Instant right/wrong visual and audio feedback.
-- Detailed explanations explaining why each option is correct or incorrect according to your notes.
-- Final victory score summary and mastery breakdown.
+### 2. Multi-Choice Quiz Engine
+- Synthesizes 5-question active-recall assessments directly from notes.
+- Four distinct options per question with randomized distractor generation.
+- Clear letter indicators (`A`, `B`, `C`, `D`), animated completion progress bar, and instant answer validation.
+- Detailed conceptual explanations for correct and incorrect answers.
+- Comprehensive completion summary with mastery percentage and scoring breakdown.
 
-### 3. 🧠 Active-Recall AI Answer Grader
-- Open-ended testing: answer questions in your own words.
-- The on-device QVAC model evaluates your answer (0–100%), highlighting **Concepts Nailed** ✅ and **Concepts to Review** 🔍.
+### 3. Open-Ended AI Answer Grader
+- Tests conceptual recall with prompt challenges requiring students to answer in their own words.
+- On-device evaluation scores responses (0-100%) and provides specific feedback on covered and missed concepts.
 
-### 4. 💬 Ask My Notes (AI Tutor Chat)
-- Real-time token-by-token streaming tutor for deep-dive questions on specific concepts.
-- Strictly grounded in your notes with zero cloud hallucination.
+### 4. Interactive Study Tutor
+- Real-time streaming conversational assistant grounded in the user's active document notes.
+- Multi-turn context memory allows students to ask follow-up questions and request deeper explanations.
+- Animated on-device thinking indicator and live token streaming cursor.
+- Dynamic excerpt prioritization focuses local model reasoning on relevant sections for long documents.
 
-### 5. 📚 Built-in Preset Note Library
-- Instant testing with pre-loaded university-level study sets:
-  - **Operating Systems & Concurrency** (Processes, Threads, Mutexes, Coffman Deadlock Conditions, Virtual Memory).
-  - **Cellular Biology & Molecular Genetics** (Organelles, Central Dogma, Mitosis vs Meiosis).
-  - **Machine Learning Foundations** (Supervised/Unsupervised, Gradient Descent, Bias-Variance, Regularization).
-  - **The Industrial Revolution** (Origins, Steam Power, Factory System, Social Impacts).
+### 5. Document Parser & Local History
+- Drag-and-drop ingestion for PDF, DOCX, DOC, TXT, and Markdown files.
+- Full client-side session management with persistent study history across browser reloads.
+- Inline session renaming and deletion controls.
 
-### 6. 💻 Terminal CLI Mode
-- Prefer working in the terminal? Run `node cli.js --notes ./path/to/notes.md` to take active-recall quizzes straight from your shell!
+### 6. Terminal CLI Interface
+- Complete headless CLI mode for running quizzes and study drills directly from terminal environments: `node cli.js --notes ./sample_notes.md`.
 
 ---
 
-## 🛠️ Architecture & QVAC SDK Integration
-
-QvacStudy is powered by Tether's `@qvac/sdk` (>=0.19.0) native runtime.
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Browser UI                            │
-│  (3D Flashcards • Multi-Choice Quiz • AI Grader • Tutor)    │
-└──────────────────────────────┬──────────────────────────────┘
-                               │  REST & SSE Events (localhost:3000)
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Node.js Local Server                     │
-│  (src/server.js & src/engine/qvacService.js)                │
-└──────────────────────────────┬──────────────────────────────┘
-                               │  @qvac/sdk API
-┌──────────────────────────────▼──────────────────────────────┐
-│                      Tether QVAC SDK                        │
-│  • loadModel()       -> Downloads & mounts local GGUF       │
-│  • completion()      -> On-device token streaming           │
-│  • ragIngest/Search  -> Local vector embeddings & retrieval │
-│  • unloadModel()     -> Cleans RAM / system memory          │
-└──────────────────────────────┬──────────────────────────────┘
-                               │  Bare Worker RPC
-┌──────────────────────────────▼──────────────────────────────┐
-│             Local Bare / C++ Inference Engine               │
-│  (QWEN3_600M_INST_Q4 / LLAMA_3_2_1B_INST_Q4_0 / GTE_LARGE)   │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                         Client UI                           |
+|      (React 19 + Vite + LocalStorage Session History)       |
++------------------------------+------------------------------+
+                               | REST API & SSE Streams (:3000)
++------------------------------v------------------------------+
+|                     Node.js Backend                         |
+|     (src/server.js & src/engine/qvacService.js)             |
++------------------------------+------------------------------+
+                               | Direct SDK Function Calls
++------------------------------v------------------------------+
+|                      Tether QVAC SDK                        |
+|  - loadModel()      -> Fetches & mounts GGUF in local RAM   |
+|  - completion()     -> Token streaming via llama.cpp        |
+|  - ragIngest()      -> Ingests text into local vector space |
+|  - ragSearch()      -> Executes local semantic similarity   |
+|  - unloadModel()    -> Releases memory upon request         |
++------------------------------+------------------------------+
+                               | Bare Worker RPC
++------------------------------v------------------------------+
+|                 On-Device Hardware Execution                |
+|        (Local CPU / GPU Threads - Zero Cloud Egress)        |
++-------------------------------------------------------------+
 ```
 
 ---
 
-## 📦 Quickstart & Installation
+## QVAC SDK Integration Details
 
-### Prerequisites
-- **Node.js**: v18.0.0 or newer (tested on Node v20, v22, and v24 on Windows, macOS, and Linux).
-- **Git**
+The project integrates `@qvac/sdk` across its core engine (`src/engine/qvacService.js`):
 
-### 1. Clone the repository
+- **Model Lifecycle (`loadModel`, `unloadModel`)**:
+  Initializes on-device models (`QWEN3_600M_INST_Q4`, `LLAMA_3_2_1B_INST_Q4_0`) into memory. Exposes real-time download and allocation progress to the frontend via Server-Sent Events (SSE).
+- **Token Generation (`completion`)**:
+  Executes streaming inference for tutor conversations and structured JSON generation for active-recall quizzes and flashcard sets. Supports conversation history arrays for multi-turn dialogue.
+- **Local RAG (`ragIngest`, `ragSearch`)**:
+  Builds local vector embeddings via `GTE_LARGE_FP16` to enable semantic note indexing and retrieval without third-party vector databases.
+
+---
+
+## Installation & Setup
+
+### Requirements
+- Node.js 18.0.0 or higher (Node 20, 22, or 24 recommended)
+- Git
+
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/qvac-study-ai.git
-cd qvac-study-ai
+git clone https://github.com/Jadeskss/QvacStudy.git
+cd QvacStudy
 ```
 
-### 2. Install dependencies
+### 2. Install Dependencies
 ```bash
 npm install
 ```
-This installs `@qvac/sdk` (^0.19.1), `react`, `react-dom`, `react-icons`, and `express`.
 
-### 3. Build & Launch the Web Application
+### 3. Build & Run the Web Application
 ```bash
-# Build React frontend with Vite:
+# Compile frontend production bundle:
 npm run build
 
-# Start the on-device AI server:
+# Start the local backend server:
 npm start
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser!
+The application will be accessible at `http://localhost:3000`.
 
-For active frontend development with Hot Module Replacement (HMR):
+For frontend development with Hot Module Replacement (HMR):
 ```bash
 npm run dev
 ```
 
-### 4. Or Run in Terminal CLI Mode
+### 4. Run in Terminal CLI Mode
 ```bash
-# Quiz from sample notes:
+# Launch interactive CLI study session:
 npm run cli
 
-# Or quiz from your own file:
+# Or quiz directly from a local notes file:
 node cli.js --notes ./sample_notes.md
 ```
 
 ---
 
-## 🧪 Automated Tests
+## Verification & Testing
 
-Run the verification test suite:
+Run the automated verification suite:
 ```bash
 npm test
 ```
-The test suite verifies:
-1. Package dependencies (`@qvac/sdk` >= 0.19.0).
-2. QVAC SDK exported functions (`loadModel`, `completion`, `unloadModel`, `ragIngest`, `ragSearch`).
-3. Sample notes integrity.
-4. JSON extraction utilities for structured quiz outputs.
+
+The test suite validates:
+1. Dependency declaration: `@qvac/sdk` version `>= 0.19.0`.
+2. Required SDK function exports: `loadModel`, `completion`, `unloadModel`, `ragIngest`, `ragSearch`.
+3. Model constants and data integrity.
+4. JSON extraction and schema validation routines.
 5. Service status reporting schema.
 
 ---
 
-## 📝 Tether Submission Checklist
+## Submission Compliance Summary
 
-- [x] **App Built & Working**: Runs on-device AI with Tether's QVAC SDK.
-- [x] **Declared Dependency**: `@qvac/sdk` in `package.json` on version `^0.19.1` (>=0.19.0).
-- [x] **Required SDK Functions Called**: Calls `loadModel`, `completion`, `unloadModel`, and `ragIngest` / `ragSearch`.
-- [x] **100% On-Device Inference**: No cloud AI APIs used.
-- [x] **Public Open-Source Repo**: Includes MIT License and full README documentation.
-- [x] **Screenshot Captured**: Saved in `docs/screenshot.png`.
+- **Declared Dependency**: `@qvac/sdk` declared in `package.json` (`^0.19.1`).
+- **Required SDK Functions**: Calls `loadModel`, `completion`, `ragIngest`, `ragSearch`, and `unloadModel`.
+- **Privacy & Execution**: 100% on-device inference with zero cloud AI API dependencies.
+- **Repository**: Public open-source repository licensed under MIT.
 
 ---
 
-## 🐦 Post on X Template
+## License
 
-When sharing your project on X (Twitter):
-
-> Built an on-device AI study app with @qvac by @Tether_to! 🎓⚡
->
-> QvacStudy turns your personal lecture notes into 3D flashcards, active-recall quizzes, and AI tutor feedback directly on your laptop—100% private with zero API keys or cloud bills.
->
-> 🔗 Repo: https://github.com/your-username/qvac-study-ai
-> 
-> #QVAC #LocalAI #OpenSource #OnDeviceAI #EdTech
-
----
-
-## 📄 License
-
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for full details.
