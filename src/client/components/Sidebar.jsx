@@ -6,11 +6,15 @@ import {
   FiCpu,
   FiTrash2,
   FiFileText,
-  FiRefreshCw
+  FiRefreshCw,
+  FiSidebar,
+  FiEdit3
 } from 'react-icons/fi';
 import { TbBrain, TbCards, TbTarget, TbSparkles } from 'react-icons/tb';
 
 export default function Sidebar({
+  isOpen,
+  onToggle,
   sessions,
   activeSessionId,
   onSelectSession,
@@ -24,17 +28,69 @@ export default function Sidebar({
   isLoadingModel,
   modelStatus
 }) {
+  // Collapsed icon rail view (like ChatGPT sidebar collapsed state)
+  if (!isOpen) {
+    return (
+      <aside className="chat-sidebar collapsed">
+        <div className="sidebar-rail-top">
+          <button onClick={onToggle} className="rail-icon-btn brand-btn" title="Open sidebar">
+            <TbBrain size={20} />
+          </button>
+          <button onClick={onNewSession} className="rail-icon-btn" title="New Study Session">
+            <FiEdit3 size={17} />
+          </button>
+          <button
+            onClick={() => onOpenTool('flashcards')}
+            className="rail-icon-btn"
+            title="Generate Flashcards"
+          >
+            <TbCards size={17} />
+          </button>
+          <button
+            onClick={() => onOpenTool('quiz')}
+            className="rail-icon-btn"
+            title="Quiz Mode"
+          >
+            <TbTarget size={17} />
+          </button>
+          <button
+            onClick={onOpenNotesModal}
+            className="rail-icon-btn"
+            title="Study Notes"
+          >
+            <FiFileText size={17} />
+          </button>
+        </div>
+
+        <div className="sidebar-rail-bottom">
+          <div className="rail-dot" title="100% On-Device AI • Zero Cloud">
+            <span className="pulse-dot"></span>
+          </div>
+          <div className="rail-user-avatar" title="Local AI Learner">
+            <span>AI</span>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  // Expanded clean sidebar
   return (
-    <aside className="chat-sidebar">
-      {/* Top Brand */}
-      <div className="sidebar-brand">
-        <div className="brand-icon-sm">
-          <TbBrain size={20} />
+    <aside className="chat-sidebar expanded">
+      {/* Top Header */}
+      <div className="sidebar-header">
+        <div className="sidebar-brand">
+          <div className="brand-icon-sm">
+            <TbBrain size={18} />
+          </div>
+          <div className="brand-info">
+            <h3>QvacStudy</h3>
+            <span>On-Device AI</span>
+          </div>
         </div>
-        <div className="brand-info">
-          <h3>QvacStudy <span className="badge-accent-sm">AI</span></h3>
-          <span>On-Device • Tether QVAC</span>
-        </div>
+        <button onClick={onToggle} className="sidebar-toggle-btn" title="Collapse sidebar">
+          <FiSidebar size={18} />
+        </button>
       </div>
 
       {/* New Session Button */}
@@ -43,40 +99,40 @@ export default function Sidebar({
         <span>New Study Session</span>
       </button>
 
-      {/* Quick Study Tools Navigation */}
+      {/* Quick Study Tools */}
       <div className="sidebar-section">
         <span className="sidebar-section-title">Study Tools</span>
         <div className="sidebar-tools-grid">
           <button
             onClick={() => onOpenTool('flashcards')}
             className="sidebar-tool-btn"
-            title="Generate interactive 3D flashcards from current notes"
+            title="Generate interactive 3D flashcards"
           >
-            <TbCards size={16} style={{ color: 'var(--accent-cyan)' }} />
+            <TbCards size={16} />
             <span>Flashcards</span>
           </button>
           <button
             onClick={() => onOpenTool('quiz')}
             className="sidebar-tool-btn"
-            title="Generate multiple-choice quiz from current notes"
+            title="Start practice quiz"
           >
-            <TbTarget size={16} style={{ color: 'var(--accent-purple)' }} />
+            <TbTarget size={16} />
             <span>Quiz Mode</span>
           </button>
           <button
             onClick={() => onOpenTool('evaluator')}
             className="sidebar-tool-btn"
-            title="Test active recall and get AI grading"
+            title="Active-recall evaluation"
           >
-            <TbBrain size={16} style={{ color: 'var(--accent-emerald)' }} />
+            <TbBrain size={16} />
             <span>AI Grader</span>
           </button>
           <button
             onClick={onOpenNotesModal}
             className="sidebar-tool-btn"
-            title="View or edit source study notes"
+            title="View or edit notes"
           >
-            <FiFileText size={16} style={{ color: 'var(--accent-amber)' }} />
+            <FiFileText size={16} />
             <span>View Notes</span>
           </button>
         </div>
@@ -106,7 +162,7 @@ export default function Sidebar({
                   className="history-delete-btn"
                   title="Delete session"
                 >
-                  <FiTrash2 size={12} />
+                  <FiTrash2 size={13} />
                 </button>
               )}
             </div>
@@ -114,12 +170,12 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Bottom Status & Model Pill */}
+      {/* Bottom Status & Model */}
       <div className="sidebar-footer">
-        <div className="sidebar-privacy" title="All inference runs on-device. Zero cloud API calls.">
+        <div className="sidebar-privacy">
           <span className="pulse-dot"></span>
           <FiLock size={12} />
-          <span>100% On-Device AI</span>
+          <span>100% On-Device AI • Zero Cloud</span>
         </div>
 
         <div className="sidebar-model-box">
@@ -141,7 +197,7 @@ export default function Sidebar({
             title="Reload on-device model"
           >
             <FiRefreshCw size={11} className={isLoadingModel ? 'spin-icon' : ''} />
-            <span>{isLoadingModel ? 'Loading...' : modelStatus?.loaded ? 'Loaded' : 'Load Model'}</span>
+            <span>{isLoadingModel ? 'Loading...' : modelStatus?.loaded ? 'Ready' : 'Load'}</span>
           </button>
         </div>
       </div>

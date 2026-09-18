@@ -39,12 +39,7 @@ export default function App() {
             title: s.title,
             category: s.category,
             notes: s.content,
-            messages: [
-              {
-                sender: 'bot',
-                text: `Welcome! I'm your on-device AI study assistant powered by Tether QVAC. Your notes on "${s.title}" are loaded and ready. Ask me anything, or click a study tool below to start quizzing!`
-              }
-            ]
+            messages: []
           }));
 
           setSessions(initialSessions);
@@ -90,16 +85,10 @@ export default function App() {
       title: 'New Study Topic',
       category: 'Custom Notes',
       notes: '# My New Study Notes\n\nPaste or type your lecture notes here...',
-      messages: [
-        {
-          sender: 'bot',
-          text: 'Started a new study session. Click "Edit Notes" or paste your lecture content, then ask questions or generate quizzes!'
-        }
-      ]
+      messages: []
     };
     setSessions([newSession, ...sessions]);
     setActiveSessionId(newId);
-    setIsNotesModalOpen(true);
   };
 
   const handleDeleteSession = (id) => {
@@ -128,6 +117,27 @@ export default function App() {
         )
       );
     }
+  };
+
+  const handleUploadSuccess = (title) => {
+    const cleanTitle = title.replace(/[-_]/g, ' ');
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId
+          ? {
+              ...s,
+              title: cleanTitle,
+              category: 'Uploaded Document',
+              messages: [
+                {
+                  sender: 'bot',
+                  text: `📄 Document "${cleanTitle}" loaded into on-device memory! Ask questions, or click Flashcards / Quiz to test your mastery.`
+                }
+              ]
+            }
+          : s
+      )
+    );
   };
 
   const handleToggleAudio = () => {
@@ -343,22 +353,23 @@ export default function App() {
       <div className="glow-orb orb-2"></div>
 
       {/* Left History & Tools Sidebar */}
-      {isSidebarOpen && (
-        <Sidebar
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSelectSession={setActiveSessionId}
-          onNewSession={handleNewSession}
-          onDeleteSession={handleDeleteSession}
-          onOpenTool={handleOpenTool}
-          onOpenNotesModal={() => setIsNotesModalOpen(true)}
-          selectedModel={selectedModel}
-          onSelectModel={setSelectedModel}
-          onLoadModel={handleLoadModel}
-          isLoadingModel={isLoadingModel}
-          modelStatus={modelStatus}
-        />
-      )}
+      {/* Left History & Tools Sidebar (collapsible icon rail or full drawer) */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={setActiveSessionId}
+        onNewSession={handleNewSession}
+        onDeleteSession={handleDeleteSession}
+        onOpenTool={handleOpenTool}
+        onOpenNotesModal={() => setIsNotesModalOpen(true)}
+        selectedModel={selectedModel}
+        onSelectModel={setSelectedModel}
+        onLoadModel={handleLoadModel}
+        isLoadingModel={isLoadingModel}
+        modelStatus={modelStatus}
+      />
 
       {/* Main Chat Interface */}
       <main className="chat-main-container">
@@ -368,38 +379,49 @@ export default function App() {
           notesWordCount={wordCount}
           onOpenNotesModal={() => setIsNotesModalOpen(true)}
           onOpenTool={handleOpenTool}
+          onNewSession={handleNewSession}
           isAudioEnabled={isAudioEnabled}
           onToggleAudio={handleToggleAudio}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          isSidebarOpen={isSidebarOpen}
+          currentView="chat"
+          onSelectView={() => {}}
         />
 
-        {/* Model Download Progress Banner */}
+        {/* Model Download Progress Banner (only shown during active downloads) */}
         <DownloadBanner progress={downloadProgress} />
 
-        {/* Conversation Feed */}
+        {/* Conversation Feed or Ready when you are Hero State */}
         <ChatFeed
           messages={activeSession?.messages || []}
           isStreaming={isStreaming}
-          onQuickPrompt={(prompt) => {
-            setInput(prompt);
-          }}
+          onQuickPrompt={handleOpenTool}
+          onOpenTool={handleOpenTool}
+          onOpenNotesModal={() => setIsNotesModalOpen(true)}
           notes={activeNotes}
+          input={input}
+          onChangeInput={setInput}
+          onSend={handleSend}
+          onStop={handleStopStreaming}
           onRegenerateFlashcards={() => handleOpenTool('flashcards')}
           onRegenerateQuiz={() => handleOpenTool('quiz')}
         />
 
-        {/* Floating Bottom Input Bar */}
-        <ChatInput
-          input={input}
-          onChangeInput={setInput}
-          onSend={handleSend}
-          isStreaming={isStreaming}
-          onStop={handleStopStreaming}
-          onOpenNotesModal={() => setIsNotesModalOpen(true)}
-          onQuickChip={(chipText) => {
-            setInput(chipText);
-          }}
-        />
+        {/* Floating Bottom Input Bar (rendered at bottom when conversation is active) */}
+        {(activeSession?.messages || []).length > 0 && (
+          <div className="chat-bottom-dock">
+            <ChatInput
+              input={input}
+              onChangeInput={setInput}
+              onSend={handleSend}
+              isStreaming={isStreaming}
+              onStop={handleStopStreaming}
+              onOpenNotesModal={() => setIsNotesModalOpen(true)}
+              onOpenTool={handleOpenTool}
+              isHero={false}
+            />
+          </div>
+        )}
       </main>
 
       {/* Source Note Editor Modal */}
@@ -411,6 +433,7 @@ export default function App() {
         sampleNotes={sampleNotes}
         selectedSampleId={activeSessionId}
         onSelectSample={handleSelectSample}
+        onUploadSuccess={handleUploadSuccess}
       />
     </div>
   );

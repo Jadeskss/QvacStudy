@@ -49,6 +49,56 @@ app.get('/api/notes/samples', (req, res) => {
   });
 });
 
+// POST: Parse uploaded document (PDF, DOCX, DOC, TXT, MD) into plain text notes on-device
+app.post('/api/notes/parse-file', async (req, res) => {
+  try {
+    const { filename, contentBase64 } = req.body;
+    if (!filename || !contentBase64) {
+      return res.status(400).json({ success: false, error: 'filename and contentBase64 required' });
+    }
+
+    const buffer = Buffer.from(contentBase64, 'base64');
+    const ext = path.extname(filename).toLowerCase();
+    let text = '';
+
+    if (ext === '.pdf') {
+      const { PDFParse } = await import('pdf-parse');
+      const data = await PDFParse(buffer);
+      text = data.text || '';
+    } else if (ext === '.docx' || ext === '.doc') {
+      const mammoth = await import('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      text = result.value || '';
+    } else {
+      // .txt, .md, .markdown, etc.
+      text = buffer.toString('utf8');
+    }
+
+    text = text.trim();
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        error: 'No readable text could be extracted from this document.'
+      });
+    }
+
+    const wordCount = text.split(/\s+/).length;
+    res.json({
+      success: true,
+      filename,
+      text,
+      wordCount,
+      characterCount: text.length
+    });
+  } catch (err) {
+    console.error('Document parse error:', err);
+    res.status(500).json({
+      success: false,
+      error: `Failed to parse document: ${err.message}`
+    });
+  }
+});
+
 // GET: SSE stream for real-time model download & loading progress
 app.get('/api/model/progress', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');

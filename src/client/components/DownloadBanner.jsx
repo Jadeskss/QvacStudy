@@ -2,7 +2,8 @@ import React from 'react';
 import { FiDownloadCloud, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
 export default function DownloadBanner({ progress }) {
-  if (!progress || (!progress.isDownloading && progress.percentage === 0 && !progress.error)) {
+  // Only show banner during active download or error - don't clutter the UI once ready
+  if (!progress || progress.percentage >= 100 || (!progress.isDownloading && !progress.error)) {
     return null;
   }
 

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { FiArrowUp, FiFileText, FiSquare, FiZap } from 'react-icons/fi';
+import { FiArrowUp, FiPlus, FiSquare, FiFileText } from 'react-icons/fi';
 import { TbCards, TbTarget, TbBrain, TbSparkles } from 'react-icons/tb';
 
 export default function ChatInput({
@@ -9,7 +9,8 @@ export default function ChatInput({
   isStreaming,
   onStop,
   onOpenNotesModal,
-  onQuickChip
+  onOpenTool,
+  isHero = false
 }) {
   const textareaRef = useRef(null);
 
@@ -17,7 +18,7 @@ export default function ChatInput({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
     }
   }, [input]);
 
@@ -29,80 +30,62 @@ export default function ChatInput({
   };
 
   return (
-    <div className="chat-bottom-wrapper">
-      {/* Quick Prompt Chips */}
-      <div className="chat-prompt-chips">
-        <button
-          onClick={() => onQuickChip('Generate 5 interactive 3D flashcards from my notes')}
-          className="prompt-chip"
-        >
-          <TbCards size={13} style={{ color: 'var(--accent-cyan)' }} />
-          <span>Flashcards Deck</span>
-        </button>
-
-        <button
-          onClick={() => onQuickChip('Start a 5-question multiple-choice quiz from my notes')}
-          className="prompt-chip"
-        >
-          <TbTarget size={13} style={{ color: 'var(--accent-purple)' }} />
-          <span>Take Quiz</span>
-        </button>
-
-        <button
-          onClick={() => onQuickChip('Test my active recall with an open-ended question')}
-          className="prompt-chip"
-        >
-          <TbBrain size={13} style={{ color: 'var(--accent-emerald)' }} />
-          <span>Grade Recall</span>
-        </button>
-
-        <button
-          onClick={() => onQuickChip('Explain the most difficult concept using a simple analogy')}
-          className="prompt-chip"
-        >
-          <TbSparkles size={13} style={{ color: 'var(--accent-amber)' }} />
-          <span>Explain with Analogy</span>
-        </button>
-      </div>
-
-      {/* Floating Input Box */}
-      <div className="chat-input-box">
+    <div className={`chat-input-container ${isHero ? 'is-hero' : ''}`}>
+      <div className="chat-pill-input">
+        {/* Plus / Add Notes Button (like ChatGPT + button) */}
         <button
           onClick={onOpenNotesModal}
-          className="input-tool-btn"
-          title="View, paste, or upload study notes"
+          className="pill-icon-btn plus-btn"
+          title="Upload or paste study notes"
         >
-          <FiFileText size={18} />
+          <FiPlus size={18} />
         </button>
 
+        {/* Text Input */}
         <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => onChangeInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask a question about your notes, or ask for flashcards / quiz..."
+          placeholder="Ask anything about your notes, or quiz me..."
           rows={1}
         />
 
-        {isStreaming ? (
-          <button onClick={onStop} className="input-send-btn stop-btn" title="Stop generating">
-            <FiSquare size={14} />
-          </button>
-        ) : (
+        {/* Action Controls on Right */}
+        <div className="pill-actions-right">
+          {/* Quick Flashcards Shortcut */}
           <button
-            onClick={onSend}
-            disabled={!input.trim()}
-            className="input-send-btn"
-            title="Send prompt to on-device AI (Enter)"
+            onClick={() => onOpenTool('flashcards')}
+            className="pill-quick-tool-btn"
+            title="Generate interactive 3D flashcards from notes"
           >
-            <FiArrowUp size={18} />
+            <TbCards size={16} />
+            <span className="tool-label">Flashcards</span>
           </button>
-        )}
+
+          {/* Send / Stop Button */}
+          {isStreaming ? (
+            <button onClick={onStop} className="pill-send-btn stop" title="Stop generating">
+              <FiSquare size={13} />
+            </button>
+          ) : (
+            <button
+              onClick={onSend}
+              disabled={!input.trim()}
+              className={`pill-send-btn ${input.trim() ? 'active' : ''}`}
+              title="Send (Enter)"
+            >
+              <FiArrowUp size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="chat-disclaimer">
-        <span>⚡ 100% On-Device AI • Powered by Tether QVAC SDK • Your notes never leave this machine</span>
-      </div>
+      {!isHero && (
+        <div className="chat-privacy-footer">
+          <span>⚡ Tether QVAC On-Device AI • 100% Local Inference • Notes stay on your device</span>
+        </div>
+      )}
     </div>
   );
 }
