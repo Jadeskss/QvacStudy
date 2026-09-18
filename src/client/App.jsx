@@ -1,57 +1,64 @@
-import React, { useState, useEffect } from 'react';
-import Header from './components/Header.jsx';
+import React, { useState, useEffect, useRef } from 'react';
+import Sidebar from './components/Sidebar.jsx';
+import ChatHeader from './components/ChatHeader.jsx';
+import ChatFeed from './components/ChatFeed.jsx';
+import ChatInput from './components/ChatInput.jsx';
 import DownloadBanner from './components/DownloadBanner.jsx';
-import NotesStudio from './components/NotesStudio.jsx';
-import FlashcardDeck from './components/FlashcardDeck.jsx';
-import QuizChallenge from './components/QuizChallenge.jsx';
-import AnswerGrader from './components/AnswerGrader.jsx';
-import NotesTutor from './components/NotesTutor.jsx';
+import NoteEditorModal from './components/NoteEditorModal.jsx';
 import { sounds } from './utils/sounds.js';
-
-import { TbCards, TbTarget, TbBrain, TbMessageChatbot } from 'react-icons/tb';
-import { FiExternalLink, FiHeart } from 'react-icons/fi';
 
 export default function App() {
   const [sampleNotes, setSampleNotes] = useState([]);
-  const [selectedSampleId, setSelectedSampleId] = useState('');
-  const [notes, setNotes] = useState('');
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState('');
 
-  const [activeTab, setActiveTab] = useState('flashcards');
-  const [targetMode, setTargetMode] = useState('flashcards');
-  const [itemCount, setItemCount] = useState(5);
-
-  const [flashcards, setFlashcards] = useState([]);
-  const [quizQuestions, setQuizQuestions] = useState([]);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [input, setInput] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
 
   const [selectedModel, setSelectedModel] = useState('QWEN3_600M_INST_Q4');
   const [modelStatus, setModelStatus] = useState(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(null);
-
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
-  // Load sample notes and status on mount
+  const abortControllerRef = useRef(null);
+
+  // Initialize samples and sessions on mount
   useEffect(() => {
     fetch('/api/notes/samples')
       .then((r) => r.json())
       .then((data) => {
         if (data.success && data.samples?.length > 0) {
           setSampleNotes(data.samples);
-          setSelectedSampleId(data.samples[0].id);
-          setNotes(data.samples[0].content);
+
+          // Create initial sessions from sample notes
+          const initialSessions = data.samples.map((s) => ({
+            id: s.id,
+            title: s.title,
+            category: s.category,
+            notes: s.content,
+            messages: [
+              {
+                sender: 'bot',
+                text: `Welcome! I'm your on-device AI study assistant powered by Tether QVAC. Your notes on "${s.title}" are loaded and ready. Ask me anything, or click a study tool below to start quizzing!`
+              }
+            ]
+          }));
+
+          setSessions(initialSessions);
+          setActiveSessionId(initialSessions[0].id);
         }
       })
       .catch((err) => console.error('Failed to load sample notes:', err));
 
     fetch('/api/status')
       .then((r) => r.json())
-      .then((data) => {
-        setModelStatus(data.qvac);
-      })
+      .then((data) => setModelStatus(data.qvac))
       .catch(() => {});
 
-    // SSE for download and load progress
+    // SSE connection for model progress
     const eventSource = new EventSource('/api/model/progress');
     eventSource.onmessage = (event) => {
       try {
@@ -71,11 +78,55 @@ export default function App() {
     return () => eventSource.close();
   }, []);
 
-  const handleSelectSample = (id) => {
-    setSelectedSampleId(id);
-    const found = sampleNotes.find((s) => s.id === id);
-    if (found) {
-      setNotes(found.content);
+  const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
+  const activeNotes = activeSession?.notes || '';
+  const wordCount = activeNotes.trim() ? activeNotes.trim().split(/\s+/).length : 0;
+
+  // Session Handlers
+  const handleNewSession = () => {
+    const newId = `session-${Date.now()}`;
+    const newSession = {
+      id: newId,
+      title: 'New Study Topic',
+      category: 'Custom Notes',
+      notes: '# My New Study Notes\n\nPaste or type your lecture notes here...',
+      messages: [
+        {
+          sender: 'bot',
+          text: 'Started a new study session. Click "Edit Notes" or paste your lecture content, then ask questions or generate quizzes!'
+        }
+      ]
+    };
+    setSessions([newSession, ...sessions]);
+    setActiveSessionId(newId);
+    setIsNotesModalOpen(true);
+  };
+
+  const handleDeleteSession = (id) => {
+    if (sessions.length <= 1) return;
+    const remaining = sessions.filter((s) => s.id !== id);
+    setSessions(remaining);
+    if (activeSessionId === id) {
+      setActiveSessionId(remaining[0].id);
+    }
+  };
+
+  const handleUpdateNotes = (newNotes) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === activeSessionId ? { ...s, notes: newNotes } : s))
+    );
+  };
+
+  const handleSelectSample = (sampleId) => {
+    const sample = sampleNotes.find((s) => s.id === sampleId);
+    if (sample) {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSessionId
+            ? { ...s, title: sample.title, category: sample.category, notes: sample.content }
+            : s
+        )
+      );
     }
   };
 
@@ -98,188 +149,269 @@ export default function App() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!notes.trim()) return;
+  // Helper to append message to active session
+  const appendMessage = (message) => {
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId
+          ? { ...s, messages: [...s.messages, message] }
+          : s
+      )
+    );
+  };
 
-    setIsGenerating(true);
-    setActiveTab(targetMode);
+  // Trigger Study Tool (Flashcards, Quiz, Evaluator)
+  const handleOpenTool = async (toolType) => {
+    if (toolType === 'flashcards') {
+      appendMessage({
+        sender: 'user',
+        text: 'Generate 5 interactive 3D flashcards from my study notes'
+      });
+      setIsStreaming(true);
 
-    try {
-      if (targetMode === 'flashcards') {
+      try {
         const res = await fetch('/api/flashcards/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ notes, count: itemCount })
+          body: JSON.stringify({ notes: activeNotes, count: 5 })
         });
         const data = await res.json();
         if (data.success && data.flashcards?.length > 0) {
-          setFlashcards(data.flashcards);
+          appendMessage({
+            sender: 'bot',
+            text: 'I have extracted 5 active-recall flashcards from your notes. Click the card or press Space to flip:',
+            widget: 'flashcards',
+            data: data.flashcards
+          });
           sounds.playFlip();
         }
-      } else if (targetMode === 'quiz') {
+      } catch (err) {
+        appendMessage({ sender: 'bot', text: 'Error generating flashcards: ' + err.message });
+      } finally {
+        setIsStreaming(false);
+      }
+    } else if (toolType === 'quiz') {
+      appendMessage({
+        sender: 'user',
+        text: 'Start a 5-question multiple-choice quiz from my study notes'
+      });
+      setIsStreaming(true);
+
+      try {
         const res = await fetch('/api/quiz/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ notes, count: itemCount })
+          body: JSON.stringify({ notes: activeNotes, count: 5 })
         });
         const data = await res.json();
         if (data.success && data.questions?.length > 0) {
-          setQuizQuestions(data.questions);
+          appendMessage({
+            sender: 'bot',
+            text: 'Here is your active-recall quiz challenge based on your notes. Select the best answer for each question:',
+            widget: 'quiz',
+            data: data.questions
+          });
           sounds.playFlip();
+        }
+      } catch (err) {
+        appendMessage({ sender: 'bot', text: 'Error generating quiz: ' + err.message });
+      } finally {
+        setIsStreaming(false);
+      }
+    } else if (toolType === 'evaluator') {
+      appendMessage({
+        sender: 'user',
+        text: 'Test my active recall with an open-ended question'
+      });
+      appendMessage({
+        sender: 'bot',
+        text: 'Here is an open-ended concept challenge. Type your response in your own words below to get on-device AI scoring:',
+        widget: 'evaluator',
+        data: {
+          question: activeNotes.includes('Coffman')
+            ? 'Explain the four Coffman conditions required for a deadlock to occur in an operating system.'
+            : 'Summarize the core premise and key definitions from your study notes.'
+        }
+      });
+    }
+  };
+
+  // Conversational Send
+  const handleSend = async () => {
+    const query = input.trim();
+    if (!query || isStreaming) return;
+
+    setInput('');
+
+    // Check if user is asking for flashcards or quiz via text
+    const lower = query.toLowerCase();
+    if (lower.includes('flashcard') || lower.includes('flash card')) {
+      handleOpenTool('flashcards');
+      return;
+    }
+    if (lower.includes('quiz') || lower.includes('test me') || lower.includes('multiple choice')) {
+      handleOpenTool('quiz');
+      return;
+    }
+    if (lower.includes('active recall') || lower.includes('grade my')) {
+      handleOpenTool('evaluator');
+      return;
+    }
+
+    // Append user message
+    appendMessage({ sender: 'user', text: query });
+    setIsStreaming(true);
+
+    // Prepare bot streaming message
+    appendMessage({ sender: 'bot', text: '' });
+
+    try {
+      abortControllerRef.current = new AbortController();
+      const response = await fetch('/api/tutor/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: abortControllerRef.current.signal,
+        body: JSON.stringify({
+          notes: activeNotes,
+          question: query
+        })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.substring(6));
+              if (data.token) {
+                accumulated += data.token;
+                setSessions((prev) =>
+                  prev.map((s) => {
+                    if (s.id !== activeSessionId) return s;
+                    const msgs = [...s.messages];
+                    msgs[msgs.length - 1] = { sender: 'bot', text: accumulated };
+                    return { ...s, messages: msgs };
+                  })
+                );
+              }
+            } catch (err) {
+              // Ignore non-json chunks
+            }
+          }
         }
       }
     } catch (err) {
-      alert('Generation error: ' + err.message);
+      if (err.name !== 'AbortError') {
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== activeSessionId) return s;
+            const msgs = [...s.messages];
+            msgs[msgs.length - 1] = {
+              sender: 'bot',
+              text: 'Error streaming from on-device model: ' + err.message
+            };
+            return { ...s, messages: msgs };
+          })
+        );
+      }
     } finally {
-      setIsGenerating(false);
+      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   };
 
-  // Compute prompt for active recall evaluator based on notes
-  const getEvaluatorPrompt = () => {
-    if (notes.includes('Coffman')) {
-      return 'Explain the four Coffman conditions required for a deadlock to occur in an operating system.';
-    } else if (notes.includes('Central Dogma') || notes.includes('Mitochondria')) {
-      return 'Explain the Central Dogma of molecular biology and describe replication, transcription, and translation.';
-    } else if (notes.includes('Gradient Descent') || notes.includes('Overfitting')) {
-      return 'Explain the difference between overfitting and underfitting in Machine Learning, and name two regularization techniques.';
-    } else if (notes.includes('Industrial Revolution')) {
-      return 'What key inventions and economic factors allowed Great Britain to lead the First Industrial Revolution?';
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsStreaming(false);
     }
-    return 'Summarize the primary thesis and key points introduced in your study notes.';
   };
 
   return (
-    <div className="app-container">
+    <div className="chat-layout-root">
       {/* Background ambient glow orbs */}
       <div className="glow-orb orb-1"></div>
       <div className="glow-orb orb-2"></div>
-      <div className="glow-orb orb-3"></div>
 
-      {/* Navigation Header */}
-      <Header
-        status={modelStatus}
-        isAudioEnabled={isAudioEnabled}
-        onToggleAudio={handleToggleAudio}
-        selectedModel={selectedModel}
-        onSelectModel={setSelectedModel}
-        onLoadModel={handleLoadModel}
-        isLoadingModel={isLoadingModel}
-      />
+      {/* Left History & Tools Sidebar */}
+      {isSidebarOpen && (
+        <Sidebar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSelectSession={setActiveSessionId}
+          onNewSession={handleNewSession}
+          onDeleteSession={handleDeleteSession}
+          onOpenTool={handleOpenTool}
+          onOpenNotesModal={() => setIsNotesModalOpen(true)}
+          selectedModel={selectedModel}
+          onSelectModel={setSelectedModel}
+          onLoadModel={handleLoadModel}
+          isLoadingModel={isLoadingModel}
+          modelStatus={modelStatus}
+        />
+      )}
 
-      {/* Model Download Progress Banner */}
-      <DownloadBanner progress={downloadProgress} />
-
-      {/* Main Workspace Split Grid */}
-      <main className="main-grid">
-        {/* Left Column: Note Studio & Library */}
-        <NotesStudio
-          notes={notes}
-          onChangeNotes={setNotes}
-          sampleNotes={sampleNotes}
-          selectedSampleId={selectedSampleId}
-          onSelectSample={handleSelectSample}
-          targetMode={targetMode}
-          onChangeTargetMode={setTargetMode}
-          itemCount={itemCount}
-          onChangeItemCount={setItemCount}
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
+      {/* Main Chat Interface */}
+      <main className="chat-main-container">
+        {/* Top Navbar */}
+        <ChatHeader
+          sessionTitle={activeSession?.title || 'Study Session'}
+          notesWordCount={wordCount}
+          onOpenNotesModal={() => setIsNotesModalOpen(true)}
+          onOpenTool={handleOpenTool}
+          isAudioEnabled={isAudioEnabled}
+          onToggleAudio={handleToggleAudio}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         />
 
-        {/* Right Column: Interactive Study Arena */}
-        <section className="panel arena-panel">
-          <div className="panel-header">
-            <div className="mode-tabs">
-              <button
-                className={`mode-tab ${activeTab === 'flashcards' ? 'active' : ''}`}
-                onClick={() => setActiveTab('flashcards')}
-              >
-                <TbCards size={16} />
-                <span>Flashcards</span>
-              </button>
-              <button
-                className={`mode-tab ${activeTab === 'quiz' ? 'active' : ''}`}
-                onClick={() => setActiveTab('quiz')}
-              >
-                <TbTarget size={16} />
-                <span>Quiz Mode</span>
-              </button>
-              <button
-                className={`mode-tab ${activeTab === 'evaluator' ? 'active' : ''}`}
-                onClick={() => setActiveTab('evaluator')}
-              >
-                <TbBrain size={16} />
-                <span>AI Grader</span>
-              </button>
-              <button
-                className={`mode-tab ${activeTab === 'tutor' ? 'active' : ''}`}
-                onClick={() => setActiveTab('tutor')}
-              >
-                <TbMessageChatbot size={16} />
-                <span>Notes Tutor</span>
-              </button>
-            </div>
+        {/* Model Download Progress Banner */}
+        <DownloadBanner progress={downloadProgress} />
 
-            <div className="arena-stats">
-              {activeTab === 'flashcards' && <span>{flashcards.length} Cards</span>}
-              {activeTab === 'quiz' && <span>{quizQuestions.length} Questions</span>}
-            </div>
-          </div>
+        {/* Conversation Feed */}
+        <ChatFeed
+          messages={activeSession?.messages || []}
+          isStreaming={isStreaming}
+          onQuickPrompt={(prompt) => {
+            setInput(prompt);
+          }}
+          notes={activeNotes}
+          onRegenerateFlashcards={() => handleOpenTool('flashcards')}
+          onRegenerateQuiz={() => handleOpenTool('quiz')}
+        />
 
-          {/* Arena Views */}
-          <div className="arena-body">
-            {activeTab === 'flashcards' && (
-              <FlashcardDeck
-                flashcards={flashcards}
-                onQuickGenerate={() => {
-                  setTargetMode('flashcards');
-                  handleGenerate();
-                }}
-              />
-            )}
-
-            {activeTab === 'quiz' && (
-              <QuizChallenge
-                questions={quizQuestions}
-                onQuickGenerate={() => {
-                  setTargetMode('quiz');
-                  handleGenerate();
-                }}
-              />
-            )}
-
-            {activeTab === 'evaluator' && (
-              <AnswerGrader
-                promptQuestion={getEvaluatorPrompt()}
-                expectedContext={notes}
-                onRefreshPrompt={() => {}}
-              />
-            )}
-
-            {activeTab === 'tutor' && <NotesTutor notes={notes} />}
-          </div>
-        </section>
+        {/* Floating Bottom Input Bar */}
+        <ChatInput
+          input={input}
+          onChangeInput={setInput}
+          onSend={handleSend}
+          isStreaming={isStreaming}
+          onStop={handleStopStreaming}
+          onOpenNotesModal={() => setIsNotesModalOpen(true)}
+          onQuickChip={(chipText) => {
+            setInput(chipText);
+          }}
+        />
       </main>
 
-      {/* Footer */}
-      <footer className="app-footer">
-        <div className="footer-left">
-          <span>⚡ Built with <strong><a href="https://qvac.tether.io" target="_blank" rel="noreferrer">Tether QVAC SDK</a></strong></span>
-          <span className="divider">•</span>
-          <span>Runs locally on your device</span>
-          <span className="divider">•</span>
-          <span>Open Source MIT</span>
-        </div>
-        <div className="footer-right">
-          <a href="https://github.com/tetherto/qvac" target="_blank" rel="noreferrer" className="footer-link">
-            QVAC GitHub <FiExternalLink size={12} style={{ verticalAlign: 'middle' }} />
-          </a>
-          <a href="https://docs.qvac.tether.io" target="_blank" rel="noreferrer" className="footer-link">
-            SDK Docs <FiExternalLink size={12} style={{ verticalAlign: 'middle' }} />
-          </a>
-        </div>
-      </footer>
+      {/* Source Note Editor Modal */}
+      <NoteEditorModal
+        isOpen={isNotesModalOpen}
+        onClose={() => setIsNotesModalOpen(false)}
+        notes={activeNotes}
+        onChangeNotes={handleUpdateNotes}
+        sampleNotes={sampleNotes}
+        selectedSampleId={activeSessionId}
+        onSelectSample={handleSelectSample}
+      />
     </div>
   );
 }
