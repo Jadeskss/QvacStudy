@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { TbCards, TbRotateDot, TbSparkles } from 'react-icons/tb';
-import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { TbCards, TbRotateDot } from 'react-icons/tb';
+import { FiChevronLeft, FiChevronRight, FiCheckCircle, FiRotateCcw } from 'react-icons/fi';
 import { sounds } from '../utils/sounds.js';
 
 export default function FlashcardDeck({ flashcards, onQuickGenerate }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [stats, setStats] = useState({ mastered: 0, review: 0, needsWork: 0 });
+  const [stats, setStats] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
+  const [isFinished, setIsFinished] = useState(false);
 
   useEffect(() => {
     setCurrentIndex(0);
     setIsFlipped(false);
+    setIsFinished(false);
+    setStats({ again: 0, hard: 0, good: 0, easy: 0 });
   }, [flashcards]);
 
+  // Spacebar flips card
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space' && !['TEXTAREA', 'INPUT'].includes(document.activeElement?.tagName)) {
@@ -22,132 +26,189 @@ export default function FlashcardDeck({ flashcards, onQuickGenerate }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFlipped]);
+  }, [isFlipped, isFinished]);
 
   const handleFlip = () => {
     sounds.playFlip();
     setIsFlipped(!isFlipped);
   };
 
-  const handleRate = (category) => {
+  const handleRate = (rating) => {
     sounds.playFlip();
-    setStats((prev) => ({ ...prev, [category]: prev[category] + 1 }));
+    setStats((prev) => ({ ...prev, [rating]: prev[rating] + 1 }));
 
     if (currentIndex < flashcards.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setIsFlipped(false);
     } else {
       sounds.playCorrect();
-      alert(`🎉 Flashcard Deck Completed!\nMastered: ${stats.mastered + (category === 'mastered' ? 1 : 0)} | Needs Work: ${stats.needsWork + (category === 'needsWork' ? 1 : 0)}`);
+      setIsFinished(true);
     }
   };
 
   const handleNavigate = (direction) => {
-    const newIdx = currentIndex + direction;
-    if (newIdx >= 0 && newIdx < flashcards.length) {
+    const nextIdx = currentIndex + direction;
+    if (nextIdx >= 0 && nextIdx < flashcards.length) {
       sounds.playFlip();
-      setCurrentIndex(newIdx);
+      setCurrentIndex(nextIdx);
       setIsFlipped(false);
     }
   };
 
+  const handleRestart = () => {
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setIsFinished(false);
+    setStats({ again: 0, hard: 0, good: 0, easy: 0 });
+  };
+
   if (!flashcards || flashcards.length === 0) {
     return (
-      <div className="empty-state">
-        <div className="empty-icon">
-          <TbCards size={48} style={{ color: 'var(--accent-cyan)' }} />
+      <div className="flashcard-empty">
+        <TbCards size={36} className="flashcard-empty-icon" />
+        <h4>No Flashcards Generated Yet</h4>
+        <p>Ask for flashcards or click the button below to generate active-recall cards from your notes.</p>
+        {onQuickGenerate && (
+          <button onClick={onQuickGenerate} className="btn-solid-white">
+            Generate Flashcards
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (isFinished) {
+    return (
+      <div className="flashcard-completed">
+        <FiCheckCircle size={40} className="completed-icon" />
+        <h3>Deck Completed!</h3>
+        <p>You reviewed all {flashcards.length} flashcards from your study notes.</p>
+        <div className="completed-stats-row">
+          <div className="stat-box"><span>{stats.easy}</span><label>Easy</label></div>
+          <div className="stat-box"><span>{stats.good}</span><label>Good</label></div>
+          <div className="stat-box"><span>{stats.hard}</span><label>Hard</label></div>
+          <div className="stat-box"><span>{stats.again}</span><label>Again</label></div>
         </div>
-        <h3>No Flashcards Generated Yet</h3>
-        <p>
-          Select notes on the left and click <strong>"Generate from Notes"</strong> to extract active-recall cards using Tether's on-device AI.
-        </p>
-        <button onClick={onQuickGenerate} className="btn-outline btn-sm quick-start-btn">
-          <TbSparkles size={14} style={{ marginRight: 6 }} />
-          Generate with Sample Notes
+        <button onClick={handleRestart} className="btn-solid-white">
+          <FiRotateCcw size={14} style={{ marginRight: 6 }} /> Review Deck Again
         </button>
       </div>
     );
   }
 
   const currentCard = flashcards[currentIndex];
+  const progressPercent = Math.round(((currentIndex + 1) / flashcards.length) * 100);
 
   return (
-    <div className="deck-container">
-      <div className="deck-meta">
-        <span className="card-counter-badge">
-          Card {currentIndex + 1} of {flashcards.length}
-        </span>
-        <div className="confidence-tracker">
-          <span className="conf-dot dot-green" title="Mastered">🟢 {stats.mastered}</span>
-          <span className="conf-dot dot-amber" title="Reviewing">🟡 {stats.review}</span>
-          <span className="conf-dot dot-red" title="Needs Work">🔴 {stats.needsWork}</span>
+    <div className="flashcard-container">
+      {/* Top Meta Bar */}
+      <div className="flashcard-header">
+        <div className="flashcard-title-group">
+          <span className="flashcard-badge">FLASHCARDS</span>
+          <span className="flashcard-counter">
+            Card {currentIndex + 1} of {flashcards.length}
+          </span>
+        </div>
+        <div className="flashcard-progress-track">
+          <div className="flashcard-progress-bar" style={{ width: `${progressPercent}%` }}></div>
         </div>
       </div>
 
-      {/* 3D Flip Card Scene */}
-      <div className="card-scene">
-        <div
-          className={`flashcard-3d ${isFlipped ? 'flipped' : ''}`}
-          onClick={handleFlip}
-          title="Click to flip card"
-        >
-          {/* Front Face */}
-          <div className="card-face card-front">
-            <span className="card-tag">QUESTION</span>
-            <div className="card-body">
+      {/* 3D Flip Card Viewport */}
+      <div className="flashcard-viewport" onClick={handleFlip} title="Click to flip (Space)">
+        <div className={`flashcard-card ${isFlipped ? 'is-flipped' : ''}`}>
+          {/* Front Side: Question */}
+          <div className="card-side card-front">
+            <div className="side-header">
+              <span className="side-label">QUESTION</span>
+              <span className="side-tip">Click to flip</span>
+            </div>
+            <div className="side-content">
               <p>{currentCard?.question}</p>
             </div>
-            <div className="card-hint">
-              <TbRotateDot size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-              Click card or press <strong>Space</strong> to reveal answer
+            <div className="side-footer">
+              <TbRotateDot size={14} />
+              <span>Press Space or click card to reveal answer</span>
             </div>
           </div>
 
-          {/* Back Face */}
-          <div className="card-face card-back">
-            <span className="card-tag tag-answer">ANSWER</span>
-            <div className="card-body">
+          {/* Back Side: Answer */}
+          <div className="card-side card-back">
+            <div className="side-header">
+              <span className="side-label side-label-answer">ANSWER</span>
+              <span className="side-tip">Answer revealed</span>
+            </div>
+            <div className="side-content">
               <p>{currentCard?.answer}</p>
             </div>
-            <div className="card-hint">Rate your recall below to advance</div>
+            <div className="side-footer">
+              <span>Rate your recall below to advance to next card</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Confidence Rating Buttons */}
-      <div className="card-controls">
-        <button onClick={() => handleRate('needsWork')} className="btn-rate rate-again">
-          <span className="rate-emoji">🔴</span> Again
-        </button>
-        <button onClick={() => handleRate('review')} className="btn-rate rate-hard">
-          <span className="rate-emoji">🟡</span> Hard
-        </button>
-        <button onClick={() => handleRate('mastered')} className="btn-rate rate-good">
-          <span className="rate-emoji">🔵</span> Good
-        </button>
-        <button onClick={() => handleRate('mastered')} className="btn-rate rate-easy">
-          <span className="rate-emoji">🟢</span> Easy
-        </button>
+      {/* Recall Rating Buttons */}
+      <div className="flashcard-rating-bar">
+        <span className="rating-label">How well did you know this?</span>
+        <div className="rating-buttons">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleRate('again'); }}
+            className="btn-rating rate-again"
+            title="Repeat this card soon"
+          >
+            Again
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleRate('hard'); }}
+            className="btn-rating rate-hard"
+            title="Difficult to recall"
+          >
+            Hard
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleRate('good'); }}
+            className="btn-rating rate-good"
+            title="Good recall"
+          >
+            Good
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleRate('easy'); }}
+            className="btn-rating rate-easy"
+            title="Perfect recall"
+          >
+            Easy
+          </button>
+        </div>
       </div>
 
-      {/* Nav Controls */}
-      <div className="card-nav">
+      {/* Bottom Navigation Toolbar */}
+      <div className="flashcard-navigation">
         <button
-          onClick={() => handleNavigate(-1)}
+          onClick={(e) => { e.stopPropagation(); handleNavigate(-1); }}
           disabled={currentIndex === 0}
-          className="btn-xs btn-ghost"
+          className="btn-nav"
         >
-          <FiChevronLeft size={14} /> Previous
+          <FiChevronLeft size={15} />
+          <span>Previous</span>
         </button>
-        <button onClick={handleFlip} className="btn-xs btn-outline">
-          <TbRotateDot size={14} style={{ marginRight: 4 }} /> Flip Card
-        </button>
+
         <button
-          onClick={() => handleNavigate(1)}
-          disabled={currentIndex === flashcards.length - 1}
-          className="btn-xs btn-ghost"
+          onClick={(e) => { e.stopPropagation(); handleFlip(); }}
+          className="btn-nav btn-nav-flip"
         >
-          Next <FiChevronRight size={14} />
+          <TbRotateDot size={15} />
+          <span>{isFlipped ? 'Show Question' : 'Show Answer'}</span>
+        </button>
+
+        <button
+          onClick={(e) => { e.stopPropagation(); handleNavigate(1); }}
+          disabled={currentIndex === flashcards.length - 1}
+          className="btn-nav"
+        >
+          <span>Next</span>
+          <FiChevronRight size={15} />
         </button>
       </div>
     </div>
