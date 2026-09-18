@@ -108,13 +108,22 @@ cd qvac-study-ai
 ```bash
 npm install
 ```
-This installs `@qvac/sdk` (^0.19.1) alongside `express` and `cors`.
+This installs `@qvac/sdk` (^0.19.1), `react`, `react-dom`, `react-icons`, and `express`.
 
-### 3. Launch the Web Application
+### 3. Build & Launch the Web Application
 ```bash
+# Build React frontend with Vite:
+npm run build
+
+# Start the on-device AI server:
 npm start
 ```
 Open **[http://localhost:3000](http://localhost:3000)** in your browser!
+
+For active frontend development with Hot Module Replacement (HMR):
+```bash
+npm run dev
+```
 
 ### 4. Or Run in Terminal CLI Mode
 ```bash

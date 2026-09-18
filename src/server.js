@@ -5,15 +5,22 @@ import { fileURLToPath } from 'url';
 import { qvacService } from './engine/qvacService.js';
 import { SAMPLE_NOTES } from './data/sampleNotes.js';
 
+import fs from 'fs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Serve Vite compiled React frontend if dist exists, else public
+const staticDir = fs.existsSync(path.join(__dirname, '../dist'))
+  ? path.join(__dirname, '../dist')
+  : path.join(__dirname, '../public');
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(staticDir));
 
 // Store SSE clients for model download progress
 const sseClients = new Set();
@@ -190,7 +197,7 @@ app.post('/api/rag/search', async (req, res) => {
 
 // Catch-all: serve index.html
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  res.sendFile(path.join(staticDir, 'index.html'));
 });
 
 // Start listening on 0.0.0.0 for reliable local access

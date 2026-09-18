@@ -1,5 +1,6 @@
-# Dependencies
+# Dependencies & build
 node_modules/
+dist/
 package-lock.json
 
 # QVAC runtime & model caches
