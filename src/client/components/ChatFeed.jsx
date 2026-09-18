@@ -92,76 +92,103 @@ export default function ChatFeed({
   return (
     <div className="chat-feed-area">
       <div className="chat-messages-container">
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`chat-message-row ${msg.sender === 'user' ? 'user-row' : 'bot-row'}`}
-          >
-            {msg.sender === 'bot' && (
-              <div className="chat-avatar bot-avatar">
-                <TbBrain size={18} />
+        {messages.map((msg, index) => {
+          const isLastBot = index === messages.length - 1 && msg.sender === 'bot';
+          const isThinking = isStreaming && isLastBot && !msg.text;
+
+          return (
+            <div
+              key={index}
+              className={`chat-message-row ${msg.sender === 'user' ? 'user-row' : 'bot-row'}`}
+            >
+              {msg.sender === 'bot' && (
+                <div className={`chat-avatar bot-avatar ${isThinking ? 'thinking-avatar' : ''}`}>
+                  <TbBrain size={18} className={isThinking ? 'brain-pulse-icon' : ''} />
+                </div>
+              )}
+
+              <div className="chat-bubble-container">
+                {/* Thinking Animation (while model computes first tokens) */}
+                {isThinking && (
+                  <div className="chat-bubble bot-bubble thinking-bubble">
+                    <div className="thinking-wrapper">
+                      <div className="thinking-dots-wave">
+                        <span className="dot dot-1"></span>
+                        <span className="dot dot-2"></span>
+                        <span className="dot dot-3"></span>
+                      </div>
+                      <span className="thinking-label">Thinking on-device...</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Text Content */}
+                {msg.text && (
+                  <div className={`chat-bubble ${msg.sender === 'user' ? 'user-bubble' : 'bot-bubble'}`}>
+                    <p style={{ whiteSpace: 'pre-wrap' }}>
+                      {msg.text}
+                      {isStreaming && isLastBot && <span className="streaming-cursor"></span>}
+                    </p>
+                  </div>
+                )}
+
+                {/* Embedded 3D Flashcards Deck */}
+                {msg.widget === 'flashcards' && (
+                  <div className="embedded-widget-card">
+                    <FlashcardDeck
+                      flashcards={msg.data}
+                      onQuickGenerate={onRegenerateFlashcards}
+                    />
+                  </div>
+                )}
+
+                {/* Embedded Quiz Challenge */}
+                {msg.widget === 'quiz' && (
+                  <div className="embedded-widget-card">
+                    <QuizChallenge
+                      questions={msg.data}
+                      onQuickGenerate={onRegenerateQuiz}
+                    />
+                  </div>
+                )}
+
+                {/* Embedded Active-Recall Grader */}
+                {msg.widget === 'evaluator' && (
+                  <div className="embedded-widget-card">
+                    <AnswerGrader
+                      promptQuestion={msg.data?.question || 'Summarize the core premise of these study notes.'}
+                      expectedContext={notes}
+                      onRefreshPrompt={() => {}}
+                    />
+                  </div>
+                )}
               </div>
-            )}
 
-            <div className="chat-bubble-container">
-              {/* Text Content */}
-              {msg.text && (
-                <div className={`chat-bubble ${msg.sender === 'user' ? 'user-bubble' : 'bot-bubble'}`}>
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p>
-                </div>
-              )}
-
-              {/* Embedded 3D Flashcards Deck */}
-              {msg.widget === 'flashcards' && (
-                <div className="embedded-widget-card">
-                  <FlashcardDeck
-                    flashcards={msg.data}
-                    onQuickGenerate={onRegenerateFlashcards}
-                  />
-                </div>
-              )}
-
-              {/* Embedded Quiz Challenge */}
-              {msg.widget === 'quiz' && (
-                <div className="embedded-widget-card">
-                  <QuizChallenge
-                    questions={msg.data}
-                    onQuickGenerate={onRegenerateQuiz}
-                  />
-                </div>
-              )}
-
-              {/* Embedded Active-Recall Grader */}
-              {msg.widget === 'evaluator' && (
-                <div className="embedded-widget-card">
-                  <AnswerGrader
-                    promptQuestion={msg.data?.question || 'Summarize the core premise of these study notes.'}
-                    expectedContext={notes}
-                    onRefreshPrompt={() => {}}
-                  />
+              {msg.sender === 'user' && (
+                <div className="chat-avatar user-avatar">
+                  <TbUser size={16} />
                 </div>
               )}
             </div>
+          );
+        })}
 
-            {msg.sender === 'user' && (
-              <div className="chat-avatar user-avatar">
-                <TbUser size={16} />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* Streaming Thinking Indicator */}
-        {isStreaming && (
+        {/* Fallback Thinking Indicator if streaming begins before bot message is inserted */}
+        {isStreaming && messages.length > 0 && messages[messages.length - 1]?.sender === 'user' && (
           <div className="chat-message-row bot-row">
-            <div className="chat-avatar bot-avatar">
-              <TbBrain size={18} className="pulse-icon" />
+            <div className="chat-avatar bot-avatar thinking-avatar">
+              <TbBrain size={18} className="brain-pulse-icon" />
             </div>
             <div className="chat-bubble-container">
-              <div className="chat-bubble bot-bubble">
-                <span className="streaming-dots">
-                  <span>●</span> <span>●</span> <span>●</span>
-                </span>
+              <div className="chat-bubble bot-bubble thinking-bubble">
+                <div className="thinking-wrapper">
+                  <div className="thinking-dots-wave">
+                    <span className="dot dot-1"></span>
+                    <span className="dot dot-2"></span>
+                    <span className="dot dot-3"></span>
+                  </div>
+                  <span className="thinking-label">Thinking on-device...</span>
+                </div>
               </div>
             </div>
           </div>

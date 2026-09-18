@@ -6,9 +6,6 @@ export default function NoteEditorModal({
   onClose,
   notes,
   onChangeNotes,
-  sampleNotes,
-  selectedSampleId,
-  onSelectSample,
   onUploadSuccess
 }) {
   if (!isOpen) return null;
@@ -129,21 +126,6 @@ export default function NoteEditorModal({
           </div>
         )}
 
-        {/* Preset Sample Notes Row */}
-        <div className="modal-presets">
-          <span className="preset-label">Sample Topics:</span>
-          <div className="preset-pills">
-            {sampleNotes.map((sample) => (
-              <button
-                key={sample.id}
-                className={`preset-pill ${selectedSampleId === sample.id ? 'active' : ''}`}
-                onClick={() => onSelectSample(sample.id)}
-              >
-                {sample.title.split('&')[0].trim()}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Notes Textarea */}
         <div className="modal-editor-area">

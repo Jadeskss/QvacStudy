@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { TbTarget, TbTrophy, TbAward } from 'react-icons/tb';
-import { FiCheckCircle, FiXCircle, FiArrowRight, FiRotateCcw, FiZap } from 'react-icons/fi';
+import { TbTarget, TbTrophy, TbSparkles } from 'react-icons/tb';
+import { FiCheckCircle, FiXCircle, FiArrowRight, FiRotateCcw, FiZap, FiCheck } from 'react-icons/fi';
 import { sounds } from '../utils/sounds.js';
 
 export default function QuizChallenge({ questions, onQuickGenerate }) {
@@ -18,30 +18,36 @@ export default function QuizChallenge({ questions, onQuickGenerate }) {
 
   if (!questions || questions.length === 0) {
     return (
-      <div className="empty-state">
-        <div className="empty-icon">
-          <TbTarget size={48} style={{ color: 'var(--accent-purple)' }} />
+      <div className="quiz-empty-state">
+        <div className="quiz-empty-icon">
+          <TbTarget size={36} />
         </div>
-        <h3>No Quiz Generated Yet</h3>
+        <h4>No Quiz Generated Yet</h4>
         <p>
-          Challenge your mastery with multiple-choice questions extracted directly from your study notes by Tether's on-device model.
+          Generate a 5-question active-recall challenge based on your current study notes.
         </p>
-        <button onClick={onQuickGenerate} className="btn-outline btn-sm quick-start-btn">
-          <FiZap size={14} style={{ marginRight: 6 }} />
-          Generate Quiz from Sample Notes
-        </button>
+        {onQuickGenerate && (
+          <button onClick={onQuickGenerate} className="btn-quiz-primary">
+            <FiZap size={14} />
+            <span>Generate 5-Question Quiz</span>
+          </button>
+        )}
       </div>
     );
   }
 
   const currentQ = questions[currentIndex];
+  const total = questions.length;
+  const isAnswered = selectedOption !== null;
+  const isCorrect = selectedOption === currentQ?.correctIndex;
+  const progressPercent = Math.round(((currentIndex + 1) / total) * 100);
 
   const handleSelectOption = (idx) => {
     if (selectedOption !== null) return;
     setSelectedOption(idx);
 
-    const isCorrect = idx === currentQ.correctIndex;
-    if (isCorrect) {
+    const correct = idx === currentQ.correctIndex;
+    if (correct) {
       setScore((s) => s + 1);
       sounds.playCorrect();
     } else {
@@ -50,7 +56,7 @@ export default function QuizChallenge({ questions, onQuickGenerate }) {
   };
 
   const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
+    if (currentIndex < total - 1) {
       setCurrentIndex((prev) => prev + 1);
       setSelectedOption(null);
     } else {
@@ -67,100 +73,136 @@ export default function QuizChallenge({ questions, onQuickGenerate }) {
   };
 
   if (isCompleted) {
-    const total = questions.length;
     const pct = Math.round((score / total) * 100);
 
     return (
-      <div className="quiz-summary">
-        <div className="summary-trophy">
-          <TbTrophy size={64} style={{ color: 'var(--accent-amber)' }} />
+      <div className="quiz-completed-card">
+        <div className="quiz-completed-trophy">
+          <TbTrophy size={48} />
         </div>
-        <h2>Quiz Completed!</h2>
-        <div className="final-score-circle">
-          <span id="finalScorePct">{pct}%</span>
-          <span id="finalScoreFraction">{score} / {total} Correct</span>
+        <h3>Quiz Completed!</h3>
+        <div className="quiz-score-badge">
+          <span className="score-pct">{pct}%</span>
+          <span className="score-fraction">{score} of {total} Correct</span>
         </div>
-        <p>
+        <p className="quiz-feedback-text">
           {pct >= 80
-            ? '🌟 Outstanding recall! You demonstrated strong mastery of your study notes.'
+            ? 'Outstanding recall! You demonstrated strong mastery of your study notes.'
             : pct >= 60
-            ? '👍 Good progress! Reviewing missed topics will reinforce deep memory retention.'
-            : '📚 Keep practicing! Re-read your notes and challenge yourself again.'}
+            ? 'Good progress! Reviewing missed topics will reinforce deep memory retention.'
+            : 'Keep practicing! Re-read your notes and challenge yourself again.'}
         </p>
-        <div className="summary-actions">
-          <button onClick={handleRetake} className="btn-outline">
-            <FiRotateCcw size={14} style={{ marginRight: 6 }} />
-            Retake Quiz
+        <div className="quiz-summary-actions">
+          <button onClick={handleRetake} className="btn-quiz-ghost">
+            <FiRotateCcw size={14} />
+            <span>Retake Quiz</span>
           </button>
-          <button onClick={onQuickGenerate} className="btn-primary">
-            <FiZap size={14} style={{ marginRight: 6 }} />
-            Generate Fresh Questions
-          </button>
+          {onQuickGenerate && (
+            <button onClick={onQuickGenerate} className="btn-quiz-primary">
+              <FiZap size={14} />
+              <span>Generate Fresh Quiz</span>
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  const isAnswered = selectedOption !== null;
-  const isCorrect = selectedOption === currentQ?.correctIndex;
-
   return (
-    <div className="quiz-container">
-      <div className="quiz-topbar">
-        <span>Question {currentIndex + 1} of {questions.length}</span>
-        <div className="quiz-score-pill">
-          <span>Score: <strong>{score}</strong></span>
+    <div className="quiz-widget-card">
+      {/* Top Meta Bar */}
+      <div className="quiz-header">
+        <div className="quiz-meta-left">
+          <span className="quiz-tag-badge">QUIZ MODE</span>
+          <span className="quiz-counter-text">
+            Question {currentIndex + 1} of {total}
+          </span>
+        </div>
+        <div className="quiz-meta-right">
+          <div className="quiz-score-pill">
+            <span>Score: <strong>{score}</strong>/{total}</span>
+          </div>
         </div>
       </div>
 
-      <div className="question-card">
-        <h3>{currentQ?.question}</h3>
-        <div className="options-list">
-          {currentQ?.options?.map((optionText, idx) => {
+      {/* Progress Track */}
+      <div className="quiz-progress-track">
+        <div className="quiz-progress-fill" style={{ width: `${progressPercent}%` }}></div>
+      </div>
+
+      {/* Question Prompt */}
+      <div className="quiz-question-body">
+        <h3 className="quiz-question-title">{currentQ?.question}</h3>
+
+        {/* Options List */}
+        <div className="quiz-options-list">
+          {currentQ?.options?.map((rawOption, idx) => {
+            const cleanText = String(rawOption).replace(/^[A-D][).:\s-]+/i, '').trim();
+            const letter = ['A', 'B', 'C', 'D'][idx];
+
             let stateClass = '';
             if (isAnswered) {
-              if (idx === currentQ.correctIndex) stateClass = 'correct';
-              else if (idx === selectedOption) stateClass = 'wrong';
-              else stateClass = 'disabled';
+              if (idx === currentQ.correctIndex) stateClass = 'opt-correct';
+              else if (idx === selectedOption) stateClass = 'opt-wrong';
+              else stateClass = 'opt-disabled';
             }
 
             return (
               <button
                 key={idx}
                 onClick={() => handleSelectOption(idx)}
-                className={`option-btn ${stateClass}`}
+                className={`quiz-opt-btn ${stateClass}`}
                 disabled={isAnswered}
+                type="button"
               >
-                <span className="opt-badge">{['A', 'B', 'C', 'D'][idx]}</span>
-                <span>{optionText.replace(/^[A-D]\)\s*/, '')}</span>
+                <span className="quiz-opt-letter">{letter}</span>
+                <span className="quiz-opt-text">{cleanText}</span>
+
+                {isAnswered && idx === currentQ.correctIndex && (
+                  <span className="quiz-opt-indicator correct" title="Correct Answer">
+                    <FiCheck size={14} />
+                  </span>
+                )}
+                {isAnswered && idx === selectedOption && !isCorrect && (
+                  <span className="quiz-opt-indicator wrong" title="Your Choice">
+                    <FiXCircle size={14} />
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
+      {/* Explanation Banner & Next Action */}
       {isAnswered && (
-        <div className="explanation-box">
-          <div className="expl-header">
+        <div className={`quiz-explanation-banner ${isCorrect ? 'banner-correct' : 'banner-wrong'}`}>
+          <div className="explanation-header">
             {isCorrect ? (
               <>
-                <FiCheckCircle size={18} style={{ color: 'var(--accent-emerald)' }} />
-                <strong style={{ color: 'var(--accent-emerald)' }}>Correct!</strong>
+                <FiCheckCircle size={16} className="expl-icon correct" />
+                <strong>Correct!</strong>
               </>
             ) : (
               <>
-                <FiXCircle size={18} style={{ color: 'var(--accent-rose)' }} />
-                <strong style={{ color: 'var(--accent-rose)' }}>
-                  Incorrect (Option {['A', 'B', 'C', 'D'][currentQ.correctIndex]} is correct)
+                <FiXCircle size={16} className="expl-icon wrong" />
+                <strong>
+                  Option {['A', 'B', 'C', 'D'][currentQ.correctIndex]} is correct
                 </strong>
               </>
             )}
           </div>
-          <p id="explContentText">{currentQ.explanation}</p>
-          <button onClick={handleNext} className="btn-primary btn-sm">
-            <span>Next Question</span>
-            <FiArrowRight size={14} />
-          </button>
+
+          {currentQ.explanation && (
+            <p className="explanation-text">{currentQ.explanation}</p>
+          )}
+
+          <div className="explanation-footer">
+            <button onClick={handleNext} className="btn-quiz-next" type="button">
+              <span>{currentIndex < total - 1 ? 'Next Question' : 'View Results'}</span>
+              <FiArrowRight size={14} />
+            </button>
+          </div>
         </div>
       )}
     </div>

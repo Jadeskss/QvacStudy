@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FiPlus,
   FiMessageSquare,
@@ -8,7 +8,8 @@ import {
   FiFileText,
   FiRefreshCw,
   FiSidebar,
-  FiEdit3
+  FiEdit3,
+  FiCheck
 } from 'react-icons/fi';
 import { TbBrain, TbCards, TbTarget, TbSparkles } from 'react-icons/tb';
 
@@ -20,6 +21,7 @@ export default function Sidebar({
   onSelectSession,
   onNewSession,
   onDeleteSession,
+  onRenameSession,
   onOpenTool,
   onOpenNotesModal,
   selectedModel,
@@ -28,6 +30,8 @@ export default function Sidebar({
   isLoadingModel,
   modelStatus
 }) {
+  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
   // Collapsed icon rail view (like ChatGPT sidebar collapsed state)
   if (!isOpen) {
     return (
@@ -38,27 +42,6 @@ export default function Sidebar({
           </button>
           <button onClick={onNewSession} className="rail-icon-btn" title="New Study Session">
             <FiEdit3 size={17} />
-          </button>
-          <button
-            onClick={() => onOpenTool('flashcards')}
-            className="rail-icon-btn"
-            title="Generate Flashcards"
-          >
-            <TbCards size={17} />
-          </button>
-          <button
-            onClick={() => onOpenTool('quiz')}
-            className="rail-icon-btn"
-            title="Quiz Mode"
-          >
-            <TbTarget size={17} />
-          </button>
-          <button
-            onClick={onOpenNotesModal}
-            className="rail-icon-btn"
-            title="Study Notes"
-          >
-            <FiFileText size={17} />
           </button>
         </div>
 
@@ -99,74 +82,97 @@ export default function Sidebar({
         <span>New Study Session</span>
       </button>
 
-      {/* Quick Study Tools */}
-      <div className="sidebar-section">
-        <span className="sidebar-section-title">Study Tools</span>
-        <div className="sidebar-tools-grid">
-          <button
-            onClick={() => onOpenTool('flashcards')}
-            className="sidebar-tool-btn"
-            title="Generate interactive 3D flashcards"
-          >
-            <TbCards size={16} />
-            <span>Flashcards</span>
-          </button>
-          <button
-            onClick={() => onOpenTool('quiz')}
-            className="sidebar-tool-btn"
-            title="Start practice quiz"
-          >
-            <TbTarget size={16} />
-            <span>Quiz Mode</span>
-          </button>
-          <button
-            onClick={() => onOpenTool('evaluator')}
-            className="sidebar-tool-btn"
-            title="Active-recall evaluation"
-          >
-            <TbBrain size={16} />
-            <span>AI Grader</span>
-          </button>
-          <button
-            onClick={onOpenNotesModal}
-            className="sidebar-tool-btn"
-            title="View or edit notes"
-          >
-            <FiFileText size={16} />
-            <span>View Notes</span>
-          </button>
-        </div>
-      </div>
-
       {/* History Session List */}
       <div className="sidebar-section history-section">
-        <span className="sidebar-section-title">Study History</span>
+        <div className="sidebar-section-header">
+          <span className="sidebar-section-title">Study History ({sessions.length})</span>
+        </div>
         <div className="history-list">
-          {sessions.map((session) => (
-            <div
-              key={session.id}
-              className={`history-item ${activeSessionId === session.id ? 'active' : ''}`}
-              onClick={() => onSelectSession(session.id)}
-            >
-              <FiMessageSquare size={14} className="history-icon" />
-              <div className="history-details">
-                <span className="history-title">{session.title}</span>
-                <span className="history-category">{session.category || 'Notes'}</span>
-              </div>
-              {sessions.length > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteSession(session.id);
-                  }}
-                  className="history-delete-btn"
-                  title="Delete session"
-                >
-                  <FiTrash2 size={13} />
-                </button>
-              )}
+          {sessions.length === 0 ? (
+            <div className="history-empty-state">
+              <span className="history-empty-text">No study sessions yet</span>
+              <button onClick={onNewSession} className="history-empty-btn">
+                <FiPlus size={13} />
+                <span>New Session</span>
+              </button>
             </div>
-          ))}
+          ) : (
+            sessions.map((session) => (
+              <div
+                key={session.id}
+                className={`history-item ${activeSessionId === session.id ? 'active' : ''}`}
+                onClick={() => onSelectSession(session.id)}
+              >
+                <FiMessageSquare size={14} className="history-icon" />
+
+                {editingSessionId === session.id ? (
+                  <div className="history-edit-box" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      className="history-edit-input"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (editingTitle.trim() && onRenameSession) {
+                            onRenameSession(session.id, editingTitle.trim());
+                          }
+                          setEditingSessionId(null);
+                        } else if (e.key === 'Escape') {
+                          setEditingSessionId(null);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        if (editingTitle.trim() && onRenameSession) {
+                          onRenameSession(session.id, editingTitle.trim());
+                        }
+                        setEditingSessionId(null);
+                      }}
+                      className="history-save-btn"
+                      title="Save title"
+                    >
+                      <FiCheck size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="history-details">
+                      <span className="history-title">{session.title}</span>
+                      <span className="history-category">{session.category || 'Notes'}</span>
+                    </div>
+
+                    <div className="history-item-actions">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingSessionId(session.id);
+                          setEditingTitle(session.title);
+                        }}
+                        className="history-action-btn"
+                        title="Rename session"
+                      >
+                        <FiEdit3 size={12} />
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteSession(session.id);
+                        }}
+                        className="history-action-btn delete-btn"
+                        title="Delete session"
+                      >
+                        <FiTrash2 size={12} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
 

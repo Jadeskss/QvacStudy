@@ -201,7 +201,7 @@ app.post('/api/quiz/evaluate', async (req, res) => {
 
 // POST: Real-time Tutor Chat streaming
 app.post('/api/tutor/stream', async (req, res) => {
-  const { notes, question } = req.body;
+  const { notes, question, history = [] } = req.body;
   if (!question) {
     return res.status(400).json({ success: false, error: 'Question is required' });
   }
@@ -211,20 +211,51 @@ app.post('/api/tutor/stream', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const systemPrompt = `You are a friendly, brilliant, and patient personal study tutor.
-Explain concepts clearly and concisely using the student's study notes as your primary source of truth.
-If the notes do not cover a specific detail, mention that gently while answering using sound fundamental knowledge.`;
+  // Smart Context Prioritization for long documents
+  let noteContext = notes ? notes.trim() : '';
+  if (noteContext.length > 5000) {
+    const qWords = question.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter((w) => w.length > 3);
+    const paragraphs = noteContext.split(/\n\s*\n/);
+    const scored = paragraphs.map((p, i) => {
+      const lower = p.toLowerCase();
+      let matchCount = 0;
+      for (const w of qWords) {
+        if (lower.includes(w)) matchCount += 2;
+      }
+      return { p, score: matchCount + (i === 0 ? 1 : 0) };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    noteContext = scored.slice(0, 5).map((s) => s.p).join('\n\n');
+  }
+
+  const systemPrompt = `You are an exceptionally smart, articulate, and encouraging on-device academic study tutor.
+Your mission is to help the student achieve deep conceptual understanding and long-term retention.
+
+Instructional Rules:
+1. Direct & Immediate: Deliver a direct, high-clarity answer in your very first sentence.
+2. Grounded in Notes: Strictly anchor your answer in the provided STUDY NOTES whenever relevant.
+3. Intuitive Breakdown: Explain mechanisms step-by-step. Use clean bullet points or numbered lists where appropriate.
+4. Concrete Analogy: Provide a brief, vivid real-world analogy to make abstract ideas stick intuitively.
+5. Emphasize Key Terms: Put crucial terminology and formulas in **bold**.
+6. Quick Socratic Check: End your answer with a single active-recall question or key takeaway.
+7. Formatting: Use clean markdown with headings and lists. Never output raw json or code fence wrapping for your whole response.`;
 
   const prompt = `STUDY NOTES:
-${notes ? notes.trim() : '(No specific notes provided)'}
+${noteContext || '(No specific notes provided)'}
 
 STUDENT'S QUESTION:
 ${question.trim()}
 
-Answer the student clearly:`;
+Answer:`;
 
   try {
-    for await (const chunk of qvacService.streamCompletion({ prompt, systemPrompt, maxTokens: 800 })) {
+    for await (const chunk of qvacService.streamCompletion({
+      prompt,
+      systemPrompt,
+      history,
+      maxTokens: 1024,
+      temperature: 0.25
+    })) {
       res.write(`data: ${JSON.stringify({ token: chunk })}\n\n`);
     }
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);

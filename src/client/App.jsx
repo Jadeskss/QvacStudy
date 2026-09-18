@@ -6,11 +6,20 @@ import ChatInput from './components/ChatInput.jsx';
 import DownloadBanner from './components/DownloadBanner.jsx';
 import NoteEditorModal from './components/NoteEditorModal.jsx';
 import { sounds } from './utils/sounds.js';
+import {
+  createNewSession,
+  loadSessions,
+  saveSessions,
+  loadActiveSessionId,
+  saveActiveSessionId
+} from './utils/storage.js';
 
 export default function App() {
-  const [sampleNotes, setSampleNotes] = useState([]);
-  const [sessions, setSessions] = useState([]);
-  const [activeSessionId, setActiveSessionId] = useState('');
+  const [sessions, setSessions] = useState(() => loadSessions());
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    const initialSessions = loadSessions();
+    return loadActiveSessionId(initialSessions);
+  });
 
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -25,29 +34,20 @@ export default function App() {
 
   const abortControllerRef = useRef(null);
 
-  // Initialize samples and sessions on mount
+  // Sync sessions to localStorage whenever sessions change
   useEffect(() => {
-    fetch('/api/notes/samples')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success && data.samples?.length > 0) {
-          setSampleNotes(data.samples);
+    saveSessions(sessions);
+  }, [sessions]);
 
-          // Create initial sessions from sample notes
-          const initialSessions = data.samples.map((s) => ({
-            id: s.id,
-            title: s.title,
-            category: s.category,
-            notes: s.content,
-            messages: []
-          }));
+  // Sync activeSessionId to localStorage whenever it changes
+  useEffect(() => {
+    if (activeSessionId) {
+      saveActiveSessionId(activeSessionId);
+    }
+  }, [activeSessionId]);
 
-          setSessions(initialSessions);
-          setActiveSessionId(initialSessions[0].id);
-        }
-      })
-      .catch((err) => console.error('Failed to load sample notes:', err));
-
+  // Initialize model status and SSE connection on mount
+  useEffect(() => {
     fetch('/api/status')
       .then((r) => r.json())
       .then((data) => setModelStatus(data.qvac))
@@ -79,44 +79,50 @@ export default function App() {
 
   // Session Handlers
   const handleNewSession = () => {
-    const newId = `session-${Date.now()}`;
-    const newSession = {
-      id: newId,
-      title: 'New Study Topic',
-      category: 'Custom Notes',
-      notes: '# My New Study Notes\n\nPaste or type your lecture notes here...',
-      messages: []
-    };
-    setSessions([newSession, ...sessions]);
-    setActiveSessionId(newId);
+    const newSession = createNewSession('New Study Session', '', 'Custom Notes');
+    setSessions((prev) => [newSession, ...prev]);
+    setActiveSessionId(newSession.id);
   };
 
   const handleDeleteSession = (id) => {
-    if (sessions.length <= 1) return;
-    const remaining = sessions.filter((s) => s.id !== id);
-    setSessions(remaining);
-    if (activeSessionId === id) {
-      setActiveSessionId(remaining[0].id);
-    }
+    setSessions((prev) => {
+      const remaining = prev.filter((s) => s.id !== id);
+      if (remaining.length === 0) {
+        const fresh = createNewSession('New Study Session', '', 'Custom Notes');
+        setActiveSessionId(fresh.id);
+        return [fresh];
+      }
+      if (activeSessionId === id) {
+        setActiveSessionId(remaining[0].id);
+      }
+      return remaining;
+    });
+  };
+
+  const handleRenameSession = (id, newTitle) => {
+    if (!newTitle?.trim()) return;
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, title: newTitle.trim(), updatedAt: Date.now() } : s
+      )
+    );
   };
 
   const handleUpdateNotes = (newNotes) => {
     setSessions((prev) =>
-      prev.map((s) => (s.id === activeSessionId ? { ...s, notes: newNotes } : s))
+      prev.map((s) => {
+        if (s.id !== activeSessionId) return s;
+        let title = s.title;
+        // If session still has the default title, infer from first line/heading
+        if (title === 'New Study Session' && newNotes.trim()) {
+          const firstLine = newNotes.trim().split('\n')[0].replace(/^#+\s*/, '').trim();
+          if (firstLine) {
+            title = firstLine.length > 40 ? firstLine.substring(0, 37) + '...' : firstLine;
+          }
+        }
+        return { ...s, notes: newNotes, title, updatedAt: Date.now() };
+      })
     );
-  };
-
-  const handleSelectSample = (sampleId) => {
-    const sample = sampleNotes.find((s) => s.id === sampleId);
-    if (sample) {
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeSessionId
-            ? { ...s, title: sample.title, category: sample.category, notes: sample.content }
-            : s
-        )
-      );
-    }
   };
 
   const handleUploadSuccess = (title) => {
@@ -238,9 +244,9 @@ export default function App() {
         text: 'Here is an open-ended concept challenge. Type your response in your own words below to get on-device AI scoring:',
         widget: 'evaluator',
         data: {
-          question: activeNotes.includes('Coffman')
-            ? 'Explain the four Coffman conditions required for a deadlock to occur in an operating system.'
-            : 'Summarize the core premise and key definitions from your study notes.'
+          question: activeNotes.trim()
+            ? 'Explain the key principles and primary concepts from your study notes in your own words.'
+            : 'Summarize what you have learned and explain the primary concepts in your own words.'
         }
       });
     }
@@ -277,13 +283,24 @@ export default function App() {
 
     try {
       abortControllerRef.current = new AbortController();
+
+      // Extract prior conversation history for intelligent multi-turn context
+      const conversationHistory = (activeSession?.messages || [])
+        .filter((m) => m.text && !m.widget)
+        .slice(-6)
+        .map((m) => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text
+        }));
+
       const response = await fetch('/api/tutor/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           notes: activeNotes,
-          question: query
+          question: query,
+          history: conversationHistory
         })
       });
 
@@ -362,6 +379,7 @@ export default function App() {
         onSelectSession={setActiveSessionId}
         onNewSession={handleNewSession}
         onDeleteSession={handleDeleteSession}
+        onRenameSession={handleRenameSession}
         onOpenTool={handleOpenTool}
         onOpenNotesModal={() => setIsNotesModalOpen(true)}
         selectedModel={selectedModel}
@@ -377,6 +395,7 @@ export default function App() {
         <ChatHeader
           sessionTitle={activeSession?.title || 'Study Session'}
           notesWordCount={wordCount}
+          onRenameSession={(title) => handleRenameSession(activeSessionId, title)}
           onOpenNotesModal={() => setIsNotesModalOpen(true)}
           onOpenTool={handleOpenTool}
           onNewSession={handleNewSession}
@@ -438,9 +457,6 @@ export default function App() {
         onClose={() => setIsNotesModalOpen(false)}
         notes={activeNotes}
         onChangeNotes={handleUpdateNotes}
-        sampleNotes={sampleNotes}
-        selectedSampleId={activeSessionId}
-        onSelectSample={handleSelectSample}
         onUploadSuccess={handleUploadSuccess}
       />
     </div>

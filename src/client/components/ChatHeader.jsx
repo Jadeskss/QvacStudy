@@ -1,10 +1,11 @@
-import React from 'react';
-import { FiVolume2, FiVolumeX, FiFileText, FiSidebar, FiEdit3, FiBookOpen } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import { FiVolume2, FiVolumeX, FiFileText, FiSidebar, FiEdit3, FiBookOpen, FiCheck } from 'react-icons/fi';
 import { TbCards, TbTarget, TbBrain, TbSparkles } from 'react-icons/tb';
 
 export default function ChatHeader({
   sessionTitle,
   notesWordCount,
+  onRenameSession,
   onOpenNotesModal,
   onOpenTool,
   onNewSession,
@@ -15,6 +16,22 @@ export default function ChatHeader({
   currentView,
   onSelectView
 }) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitleText, setEditTitleText] = useState(sessionTitle);
+
+  useEffect(() => {
+    setEditTitleText(sessionTitle);
+  }, [sessionTitle]);
+
+  const handleSaveTitle = () => {
+    setIsEditingTitle(false);
+    if (editTitleText.trim() && editTitleText.trim() !== sessionTitle && onRenameSession) {
+      onRenameSession(editTitleText.trim());
+    } else {
+      setEditTitleText(sessionTitle);
+    }
+  };
+
   return (
     <header className="chat-navbar">
       <div className="chat-nav-left">
@@ -35,7 +52,37 @@ export default function ChatHeader({
         </button>
 
         <div className="chat-session-meta">
-          <h2>{sessionTitle}</h2>
+          {isEditingTitle ? (
+            <div className="chat-title-edit-box">
+              <input
+                type="text"
+                className="chat-title-edit-input"
+                value={editTitleText}
+                onChange={(e) => setEditTitleText(e.target.value)}
+                onBlur={handleSaveTitle}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                  if (e.key === 'Escape') {
+                    setEditTitleText(sessionTitle);
+                    setIsEditingTitle(false);
+                  }
+                }}
+                autoFocus
+              />
+              <button onClick={handleSaveTitle} className="chat-title-save-btn" title="Save title">
+                <FiCheck size={12} />
+              </button>
+            </div>
+          ) : (
+            <div
+              className="chat-title-wrapper"
+              onClick={() => setIsEditingTitle(true)}
+              title="Click to rename topic"
+            >
+              <h2>{sessionTitle}</h2>
+              <FiEdit3 size={12} className="title-edit-hint" />
+            </div>
+          )}
           <span className="chat-word-count">
             <FiBookOpen size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />
             {notesWordCount.toLocaleString()} words

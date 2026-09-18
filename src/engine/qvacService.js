@@ -150,18 +150,21 @@ class QvacService {
   /**
    * Core completion call with token streaming via @qvac/sdk completion()
    */
-  async *streamCompletion({ prompt, systemPrompt, maxTokens = 1024, temperature = 0.3 }) {
+  async *streamCompletion({ prompt, systemPrompt, history = [], maxTokens = 1024, temperature = 0.3 }) {
     const modelId = await this.ensureModelLoaded();
 
-    const history = [];
+    const conversationHistory = [];
     if (systemPrompt) {
-      history.push({ role: 'system', content: systemPrompt });
+      conversationHistory.push({ role: 'system', content: systemPrompt });
     }
-    history.push({ role: 'user', content: prompt });
+    if (Array.isArray(history) && history.length > 0) {
+      conversationHistory.push(...history);
+    }
+    conversationHistory.push({ role: 'user', content: prompt });
 
     const run = completion({
       modelId,
-      history,
+      history: conversationHistory,
       stream: true,
       options: {
         max_tokens: maxTokens,
@@ -226,7 +229,18 @@ Generate ${count} flashcards from the notes above in JSON format.`;
       ]);
 
       const parsed = this._extractJsonArray(responseText, []);
-      if (parsed.length > 0) return parsed.slice(0, count);
+      if (parsed.length >= count) return parsed.slice(0, count);
+      if (parsed.length > 0) {
+        const fallback = this._generateHeuristicFlashcards(notes, count * 2);
+        const combined = [...parsed];
+        for (const card of fallback) {
+          if (combined.length >= count) break;
+          if (!combined.some((c) => c.question.toLowerCase() === card.question.toLowerCase())) {
+            combined.push(card);
+          }
+        }
+        return combined.slice(0, count);
+      }
     } catch (err) {
       console.log('[QVAC Engine Note Processor]', err.message);
     }
@@ -245,7 +259,7 @@ Format:
 [
   {
     "question": "Clear question text?",
-    "options": ["A) First option", "B) Second option", "C) Third option", "D) Fourth option"],
+    "options": ["First option", "Second option", "Third option", "Fourth option"],
     "correctIndex": 0,
     "explanation": "Brief explanation of why this option is correct based on the notes."
   }
@@ -268,7 +282,18 @@ Generate ${count} multiple-choice questions from the notes above in the required
       ]);
 
       const parsed = this._extractJsonArray(responseText, []);
-      if (parsed.length > 0) return parsed.slice(0, count);
+      if (parsed.length >= count) return parsed.slice(0, count);
+      if (parsed.length > 0) {
+        const fallback = this._generateHeuristicQuiz(notes, count * 2);
+        const combined = [...parsed];
+        for (const q of fallback) {
+          if (combined.length >= count) break;
+          if (!combined.some((item) => item.question.toLowerCase() === q.question.toLowerCase())) {
+            combined.push(q);
+          }
+        }
+        return combined.slice(0, count);
+      }
     } catch (err) {
       console.log('[QVAC Engine Note Processor]', err.message);
     }
@@ -405,13 +430,18 @@ Provide evaluation JSON:`;
   /**
    * High-yield local note extractor for flashcards
    */
+  /**
+   * High-yield local note extractor for flashcards
+   */
   _generateHeuristicFlashcards(notes, count = 5) {
     const cards = [];
-    const lines = notes.split('\n');
+    const rawLines = (notes || '').split('\n');
 
-    for (const line of lines) {
+    for (const line of rawLines) {
       const trimmed = line.trim();
-      // Match markdown bold definitions: - **Term**: Definition
+      if (!trimmed) continue;
+
+      // 1. Match markdown bold definitions: - **Term**: Definition
       const boldMatch = trimmed.match(/^[-*]?\s*\*\*([^*]+)\*\*:\s*(.+)$/);
       if (boldMatch) {
         cards.push({
@@ -420,40 +450,99 @@ Provide evaluation JSON:`;
         });
         continue;
       }
-      // Match numbered points: 1. **Term**: Definition
-      const numMatch = trimmed.match(/^\d+\.\s*\*\*([^*]+)\*\*:\s*(.+)$/);
-      if (numMatch) {
+
+      // 2. Match numbered bold points: 1. **Term**: Definition
+      const numBoldMatch = trimmed.match(/^\d+[\).]\s*\*\*([^*]+)\*\*:\s*(.+)$/);
+      if (numBoldMatch) {
         cards.push({
-          question: `Explain ${numMatch[1].trim()}:`,
-          answer: numMatch[2].trim()
+          question: `Explain ${numBoldMatch[1].trim()}:`,
+          answer: numBoldMatch[2].trim()
         });
         continue;
       }
-      // Match headings: ## Heading
-      const headingMatch = trimmed.match(/^##+\s*(.+)$/);
-      if (headingMatch && headingMatch[1].length > 3) {
+
+      // 3. Match bold dash: **Term** - Definition
+      const boldDashMatch = trimmed.match(/^\*\*([^*]+)\*\*\s*[-–—]\s*(.+)$/);
+      if (boldDashMatch) {
         cards.push({
-          question: `What are the key concepts of "${headingMatch[1].trim()}"?`,
-          answer: `Covers key fundamentals and principles outlined in this section.`
+          question: `Define ${boldDashMatch[1].trim()}:`,
+          answer: boldDashMatch[2].trim()
+        });
+        continue;
+      }
+
+      // 4. Match plain Term: Definition (Term length between 3 and 50 chars)
+      const colonMatch = trimmed.match(/^([A-Za-z0-9\s]{3,45}):\s+(.{15,})$/);
+      if (colonMatch && !colonMatch[1].toLowerCase().startsWith('http')) {
+        cards.push({
+          question: `What is meant by "${colonMatch[1].trim()}"?`,
+          answer: colonMatch[2].trim()
+        });
+        continue;
+      }
+
+      // 5. Match headings: ## Heading
+      const headingMatch = trimmed.match(/^##+\s*(.+)$/);
+      if (headingMatch && headingMatch[1].trim().length > 3) {
+        cards.push({
+          question: `What are the core concepts covered in "${headingMatch[1].trim()}"?`,
+          answer: `Addresses the fundamental principles, definitions, and operational mechanisms of ${headingMatch[1].trim()}.`
+        });
+        continue;
+      }
+
+      // 6. Match substantial bullet points: - Some important concept description
+      const bulletMatch = trimmed.match(/^[-*•]\s+([A-Z][^.]{20,}\.?)$/);
+      if (bulletMatch) {
+        cards.push({
+          question: `What key observation is noted regarding this concept?`,
+          answer: bulletMatch[1].trim()
         });
       }
     }
 
-    // Deduplicate and fallback
+    // Deduplicate extracted cards
     const unique = [];
     const seen = new Set();
     for (const c of cards) {
-      if (!seen.has(c.question)) {
-        seen.add(c.question);
+      const qKey = c.question.toLowerCase();
+      if (!seen.has(qKey)) {
+        seen.add(qKey);
         unique.push(c);
       }
     }
 
-    if (unique.length === 0) {
-      unique.push(
-        { question: "Core premise of these study notes", answer: notes.slice(0, 150) + "..." },
-        { question: "Key takeaway from lecture material", answer: "Review note sections for supporting evidence and definitions." }
-      );
+    // If fewer than count, extract paragraphs or sentence chunks
+    if (unique.length < count) {
+      const paragraphs = notes
+        .split(/\n\s*\n|\r\n\s*\r\n/)
+        .map((p) => p.replace(/[#*`_]/g, '').trim())
+        .filter((p) => p.length > 25);
+
+      const sentencePool = notes
+        .split(/[.!?]\s+/)
+        .map((s) => s.replace(/[#*`_]/g, '').trim())
+        .filter((s) => s.length > 25 && s.length < 250);
+
+      const questionsTemplates = [
+        "What is the primary concept or premise presented in this material?",
+        "What key process, mechanism, or rule is highlighted in the text?",
+        "According to the notes, what are the primary requirements or conditions discussed?",
+        "How is the core topic applied or evaluated based on the lecture content?",
+        "What is the significant conclusion or takeaway emphasized in this section?"
+      ];
+
+      for (let i = 0; i < questionsTemplates.length && unique.length < count; i++) {
+        const fallbackAns =
+          paragraphs[i] ||
+          sentencePool[i] ||
+          (notes.trim().length > 30 ? notes.trim().slice(0, 180) + "..." : "Key factual foundation and criteria specified in the study document.");
+
+        unique.push({
+          question: questionsTemplates[i],
+          answer: fallbackAns
+        });
+      }
     }
 
     return unique.slice(0, count);
@@ -463,23 +552,45 @@ Provide evaluation JSON:`;
    * High-yield local note extractor for multiple-choice quiz questions
    */
   _generateHeuristicQuiz(notes, count = 5) {
-    const flashcards = this._generateHeuristicFlashcards(notes, count * 2);
+    const flashcards = this._generateHeuristicFlashcards(notes, Math.max(count * 2, 10));
     const questions = [];
+
+    const academicDistractors = [
+      "A non-functional legacy approach superseded by modern architectural standards.",
+      "An opposing mechanism that operates under inverse operational constraints.",
+      "An external module isolated from runtime execution state.",
+      "A synchronized background utility that periodically purges inactive records.",
+      "A non-deterministic behavior resulting from uncoordinated concurrent state.",
+      "An unverified theoretical alternative not currently utilized in practice."
+    ];
 
     for (let i = 0; i < flashcards.length && questions.length < count; i++) {
       const current = flashcards[i];
       const otherAnswers = flashcards
         .filter((_, idx) => idx !== i)
-        .map((c) => c.answer.length > 70 ? c.answer.slice(0, 65) + '...' : c.answer);
+        .map((c) => (c.answer.length > 80 ? c.answer.slice(0, 77) + '...' : c.answer));
 
-      // Create distractors
-      const distractors = [
-        otherAnswers[0] || 'An unrelated system component not described in these notes.',
-        otherAnswers[1] || 'A non-functional legacy approach superseded by modern standards.',
-        'An opposing mechanism that operates under inverse constraints.'
+      // Pick 3 distractors
+      const pool = [...otherAnswers, ...academicDistractors];
+      const selectedDistractors = [];
+      for (const d of pool) {
+        if (selectedDistractors.length >= 3) break;
+        if (d !== current.answer && !selectedDistractors.includes(d)) {
+          selectedDistractors.push(d);
+        }
+      }
+
+      while (selectedDistractors.length < 3) {
+        selectedDistractors.push(academicDistractors[selectedDistractors.length]);
+      }
+
+      // 4 options total
+      const cleanCorrect = current.answer.replace(/^[A-D][).:\s-]+/i, '').trim();
+      const allOptions = [
+        cleanCorrect,
+        ...selectedDistractors.slice(0, 3).map((d) => d.replace(/^[A-D][).:\s-]+/i, '').trim())
       ];
 
-      const allOptions = [current.answer, ...distractors.slice(0, 3)];
       // Shuffle options
       const correctIdx = Math.floor(Math.random() * 4);
       const temp = allOptions[0];
@@ -488,9 +599,9 @@ Provide evaluation JSON:`;
 
       questions.push({
         question: current.question,
-        options: allOptions.map((opt, oIdx) => `${['A', 'B', 'C', 'D'][oIdx]}) ${opt}`),
+        options: allOptions,
         correctIndex: correctIdx,
-        explanation: `Based on your notes: ${current.answer}`
+        explanation: `Correct: ${cleanCorrect}`
       });
     }
 
